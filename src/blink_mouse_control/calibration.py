@@ -2,11 +2,40 @@
 
 import time
 from collections.abc import Sequence
+from typing import Any
 
 import cv2
 
 from .config import DetectionConfig
 from .ear import calculate_ear, compute_threshold_from_samples
+
+
+def _extract_average_ear(
+    results: Any,
+    left_eye_indices: Sequence[int],
+    right_eye_indices: Sequence[int],
+) -> float | None:
+    """Return average EAR for detected face landmarks, else None."""
+    if not results.multi_face_landmarks:
+        return None
+
+    landmarks = results.multi_face_landmarks[0].landmark
+    left_ear = calculate_ear(left_eye_indices, landmarks)
+    right_ear = calculate_ear(right_eye_indices, landmarks)
+    return (left_ear + right_ear) / 2.0
+
+
+def _draw_calibration_overlay(frame: Any, elapsed_seconds: int, total_seconds: float) -> None:
+    """Render calibration progress text on the preview frame."""
+    cv2.putText(
+        frame,
+        f"Calibrating... {elapsed_seconds}s/{int(total_seconds)}s",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (50, 200, 50),
+        2,
+    )
 
 
 def calibrate_ear_threshold(
@@ -17,7 +46,9 @@ def calibrate_ear_threshold(
     config: DetectionConfig,
 ) -> float:
     """Collect EAR samples for a short time and derive a threshold."""
-    print(f"[CALIBRATION] Look at the camera for about {int(config.calibration_time_seconds)}s...")
+    print(
+        f"[CALIBRATION] Look at the camera for about {int(config.calibration_time_seconds)}s..."
+    )
 
     start = time.monotonic()
     ear_samples: list[float] = []
@@ -31,22 +62,12 @@ def calibrate_ear_threshold(
         rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
         results = face_mesh.process(rgb)
 
-        if results.multi_face_landmarks:
-            landmarks = results.multi_face_landmarks[0].landmark
-            left_ear = calculate_ear(left_eye_indices, landmarks)
-            right_ear = calculate_ear(right_eye_indices, landmarks)
-            ear_samples.append((left_ear + right_ear) / 2.0)
+        average_ear = _extract_average_ear(results, left_eye_indices, right_eye_indices)
+        if average_ear is not None:
+            ear_samples.append(average_ear)
 
         elapsed = int(time.monotonic() - start)
-        cv2.putText(
-            frame_small,
-            f"Calibrating... {elapsed}s/{int(config.calibration_time_seconds)}s",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (50, 200, 50),
-            2,
-        )
+        _draw_calibration_overlay(frame_small, elapsed, config.calibration_time_seconds)
         cv2.imshow("Calibration", frame_small)
         if cv2.waitKey(1) & 0xFF == 27:
             break
