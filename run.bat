@@ -8,8 +8,8 @@ if exist ".venv\Scripts\activate.bat" (
 	call venv\Scripts\activate.bat
 )
 
-REM Run the demo
-python src\main.py
+REM Run the desktop control panel by default
+python src\main.py --ui
 
 REM Keep window open to see messages
 pause

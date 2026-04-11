@@ -103,6 +103,8 @@ On Windows, you can also use:
 .\run.bat
 ```
 
+This launcher opens the CustomTkinter control panel by default.
+
 Note: On the first run, the app downloads the required `face_landmarker.task` model and caches it locally.
 
 When the app starts, calibration runs for a few seconds. Keep your face centered and look at the camera until the webcam window opens.
