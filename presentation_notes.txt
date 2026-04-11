@@ -1,0 +1,26 @@
+Presentation notes - Blink Mouse Control
+
+1) Problem & motivation
+   - Hands-free mouse control for accessibility & multitasking.
+   - Uses only a webcam; no special hardware.
+
+2) Libraries & roles
+   - OpenCV: capture frames, overlay text
+   - MediaPipe FaceMesh: 468 facial landmarks (real-time)
+   - NumPy: numeric operations
+   - PyAutoGUI: perform mouse actions programmatically
+
+3) Core algorithm
+   - Eye Aspect Ratio (EAR) computed from 6 eye landmarks.
+   - EAR falls when eye closes; thresholding detects blinks.
+   - Calibration samples user's EAR to compute a reliable threshold.
+   - Timing used to differentiate single/double/long blinks.
+
+4) Demo sequence
+   - Run program → calibration → main window.
+   - Single blink -> left click; Double -> right click; Long -> hold.
+   - Show Notepad/paint to demonstrate clicks.
+
+5) Limitations & future work
+   - Sensitive to lighting and extreme head pose.
+   - Improve: GUI, per-user profiles, gaze-based cursor movement, iris tracking.
