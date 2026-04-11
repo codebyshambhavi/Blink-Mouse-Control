@@ -16,6 +16,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=4.0,
         help="Calibration duration in seconds (default: 4.0)",
     )
+    parser.add_argument(
+        "--process-width",
+        type=int,
+        default=640,
+        help="Frame width used for blink detection (default: 640)",
+    )
+    parser.add_argument(
+        "--process-height",
+        type=int,
+        default=360,
+        help="Frame height used for blink detection (default: 360)",
+    )
+    parser.add_argument(
+        "--camera-width",
+        type=int,
+        default=640,
+        help="Requested camera capture width (default: 640)",
+    )
+    parser.add_argument(
+        "--camera-height",
+        type=int,
+        default=360,
+        help="Requested camera capture height (default: 360)",
+    )
     return parser
 
 
@@ -25,6 +49,9 @@ def main() -> None:
     config = DetectionConfig(
         camera_index=args.camera_index,
         calibration_time_seconds=args.calibration_seconds,
+        process_size=(args.process_width, args.process_height),
+        camera_width=args.camera_width,
+        camera_height=args.camera_height,
     )
 
     print("Blink Mouse Control - starting...")

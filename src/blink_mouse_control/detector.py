@@ -1,5 +1,6 @@
 """Real-time blink detection orchestration."""
 
+import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -25,7 +26,24 @@ class BlinkState:
 
 def _open_camera(camera_index: int) -> cv2.VideoCapture:
     """Return an opened VideoCapture or an unopened handle if unavailable."""
-    return cv2.VideoCapture(camera_index)
+    backend = cv2.CAP_DSHOW if os.name == "nt" else 0
+    return cv2.VideoCapture(camera_index, backend)
+
+
+def _configure_camera(cap: cv2.VideoCapture, config: DetectionConfig) -> None:
+    """Request a smaller camera stream to reduce bandwidth and CPU usage."""
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.camera_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.camera_height)
+    cap.set(cv2.CAP_PROP_FPS, config.max_camera_fps)
+
+
+def _read_frame(cap: cv2.VideoCapture) -> tuple[bool, Any | None]:
+    """Read a frame and report capture errors in a single place."""
+    try:
+        return cap.read()
+    except cv2.error as exc:
+        print(f"[ERROR] Camera read failed: {exc}")
+        return False, None
 
 
 def _smooth_ear(ear_history: deque[float], current_ear: float) -> float:
@@ -131,6 +149,7 @@ def run_detection(config: DetectionConfig | None = None) -> None:
     mp_drawing = mp.solutions.drawing_utils
 
     try:
+        _configure_camera(cap, config)
         with mp_face_mesh.FaceMesh(
             max_num_faces=config.max_num_faces,
             refine_landmarks=config.refine_landmarks,
@@ -158,12 +177,13 @@ def run_detection(config: DetectionConfig | None = None) -> None:
             print("[INFO] Detection started. Press ESC to quit.")
 
             while True:
-                ok, frame = cap.read()
+                ok, frame = _read_frame(cap)
                 if not ok:
                     print("[WARN] Could not read frame from camera.")
                     break
 
-                frame_small = cv2.resize(frame, config.frame_size)
+                frame_small = cv2.resize(frame, config.process_size)
+                display_frame = cv2.resize(frame_small, config.frame_size)
                 rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
                 results = face_mesh.process(rgb)
 
@@ -185,20 +205,30 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                     )
                     _dispatch_click_actions(now, state, pyautogui_actions, config)
 
-                    _draw_ear_overlay(frame_small, smooth_ear, ear_threshold)
+                    _draw_ear_overlay(display_frame, smooth_ear, ear_threshold)
                     mp_drawing.draw_landmarks(
-                        frame_small,
+                        display_frame,
                         results.multi_face_landmarks[0],
                         mp_face_mesh.FACEMESH_TESSELATION,
                         mesh_spec,
                         contour_spec,
                     )
                 else:
-                    _draw_no_face_overlay(frame_small)
+                    _draw_no_face_overlay(display_frame)
 
-                cv2.imshow("Eye Blink Mouse Control", frame_small)
-                if (cv2.waitKey(1) & 0xFF) == 27:
+                cv2.imshow("Eye Blink Mouse Control", display_frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == 27:
                     break
+                if key in (ord("q"), ord("Q")):
+                    print("[INFO] Quit requested by user.")
+                    break
+    except KeyboardInterrupt:
+        print("\n[INFO] Interrupted by user.")
+    except cv2.error as exc:
+        print(f"[ERROR] OpenCV failure: {exc}")
+    except Exception as exc:
+        print(f"[ERROR] Unexpected failure: {exc}")
     finally:
         cap.release()
         cv2.destroyAllWindows()

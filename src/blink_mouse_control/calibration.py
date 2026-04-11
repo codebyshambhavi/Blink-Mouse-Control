@@ -54,7 +54,12 @@ def calibrate_ear_threshold(
     ear_samples: list[float] = []
 
     while time.monotonic() - start < config.calibration_time_seconds:
-        ok, frame = cap.read()
+        try:
+            ok, frame = cap.read()
+        except cv2.error as exc:
+            print(f"[CALIBRATION] Camera error: {exc}")
+            break
+
         if not ok:
             continue
 
@@ -69,7 +74,12 @@ def calibrate_ear_threshold(
         elapsed = int(time.monotonic() - start)
         _draw_calibration_overlay(frame_small, elapsed, config.calibration_time_seconds)
         cv2.imshow("Calibration", frame_small)
-        if cv2.waitKey(1) & 0xFF == 27:
+        key = cv2.waitKey(1) & 0xFF
+        if key == 27:
+            print("[CALIBRATION] Cancelled by user.")
+            break
+        if key in (ord("q"), ord("Q")):
+            print("[CALIBRATION] Quit requested by user.")
             break
 
     cv2.destroyWindow("Calibration")

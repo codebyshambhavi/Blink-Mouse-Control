@@ -9,6 +9,7 @@ class DetectionConfig:
 
     camera_index: int = 0
     frame_size: tuple[int, int] = (960, 540)
+    process_size: tuple[int, int] = (640, 360)
     calibration_preview_size: tuple[int, int] = (640, 360)
     calibration_time_seconds: float = 4.0
     ear_smooth_window: int = 6
@@ -19,6 +20,9 @@ class DetectionConfig:
     min_detection_confidence: float = 0.5
     max_num_faces: int = 1
     refine_landmarks: bool = True
+    camera_width: int = 640
+    camera_height: int = 360
+    max_camera_fps: int = 30
 
 
 LEFT_EYE_LANDMARKS: tuple[int, int, int, int, int, int] = (33, 160, 158, 133, 153, 144)
