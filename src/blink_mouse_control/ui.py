@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
-from tkinter import ttk
+
+import customtkinter as ctk
 
 from .config import DetectionConfig
 from .detector import DetectionControl, run_detection
@@ -27,9 +28,12 @@ class BlinkControlPanel:
         self._is_closing = False
         self._stop_in_progress = False
 
-        self.root = tk.Tk()
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
+
+        self.root = ctk.CTk()
         self.root.title("Blink Mouse Control")
-        self.root.geometry("420x490")
+        self.root.geometry("460x560")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -43,145 +47,209 @@ class BlinkControlPanel:
         self.ear_var = tk.StringVar(value="-")
         self.blink_count_var = tk.StringVar(value="0")
         self.current_threshold_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
-        self.recalibrate_button: ttk.Button | None = None
-        self.start_button: ttk.Button | None = None
-
-        self._setup_style()
+        self.recalibrate_button: ctk.CTkButton | None = None
+        self.start_button: ctk.CTkButton | None = None
+        self.preset_dropdown: ctk.CTkComboBox | None = None
+        self.sensitivity_slider: ctk.CTkSlider | None = None
+        self.cursor_switch: ctk.CTkSwitch | None = None
 
         self._build_layout()
         self._schedule_status_poll()
 
-    def _setup_style(self) -> None:
-        """Configure a compact, professional visual style for widgets."""
-        style = ttk.Style(self.root)
-        style.configure("Section.TLabelframe", padding=10)
-        style.configure("Section.TLabelframe.Label", font=("Segoe UI", 10, "bold"))
-        style.configure("StatusValue.TLabel", font=("Segoe UI", 10, "bold"))
-        style.configure("Body.TLabel", font=("Segoe UI", 9))
-        style.configure("Primary.TButton", padding=(8, 6))
-        style.configure("Secondary.TButton", padding=(8, 6))
-
     def _build_layout(self) -> None:
         """Build and place all UI widgets in the main window."""
-        container = ttk.Frame(self.root, padding=14)
-        container.pack(fill=tk.BOTH, expand=True)
+        container = ctk.CTkFrame(self.root, corner_radius=12)
+        container.pack(fill=tk.BOTH, expand=True, padx=14, pady=14)
         container.columnconfigure(0, weight=1)
 
-        status_frame = ttk.LabelFrame(container, text="Status", style="Section.TLabelframe")
-        status_frame.grid(row=0, column=0, sticky=tk.EW, pady=(0, 10))
+        status_frame = ctk.CTkFrame(container, corner_radius=10)
+        status_frame.grid(row=0, column=0, sticky=tk.EW, padx=10, pady=(10, 8))
         status_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(status_frame, text="System state", style="Body.TLabel").grid(
+        ctk.CTkLabel(
+            status_frame,
+            text="Status",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 2))
+
+        ctk.CTkLabel(status_frame, text="System state", font=ctk.CTkFont(size=12)).grid(
             row=0,
             column=0,
             sticky=tk.W,
-            padx=(0, 10),
+            padx=(12, 10),
+            pady=(28, 10),
         )
-        ttk.Label(status_frame, textvariable=self.status_var, style="StatusValue.TLabel").grid(
+        ctk.CTkLabel(
+            status_frame,
+            textvariable=self.status_var,
+            font=ctk.CTkFont(size=12, weight="bold"),
+        ).grid(
             row=0,
             column=1,
             sticky=tk.W,
+            pady=(28, 10),
         )
 
-        controls_frame = ttk.LabelFrame(container, text="Controls", style="Section.TLabelframe")
-        controls_frame.grid(row=1, column=0, sticky=tk.EW, pady=(0, 10))
+        controls_frame = ctk.CTkFrame(container, corner_radius=10)
+        controls_frame.grid(row=1, column=0, sticky=tk.EW, padx=10, pady=(0, 8))
         controls_frame.columnconfigure(0, weight=1)
         controls_frame.columnconfigure(1, weight=1)
 
-        start_button = ttk.Button(
+        ctk.CTkLabel(
+            controls_frame,
+            text="Controls",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 2))
+
+        start_button = ctk.CTkButton(
             controls_frame,
             textvariable=self.start_button_var,
             command=self._toggle_start_stop,
-            style="Primary.TButton",
+            corner_radius=10,
+            height=36,
         )
-        start_button.grid(row=0, column=0, padx=(0, 6), sticky=tk.EW)
+        start_button.grid(row=1, column=0, padx=(12, 6), pady=(8, 12), sticky=tk.EW)
         self.start_button = start_button
 
-        self.recalibrate_button = ttk.Button(
+        recalibrate_button = ctk.CTkButton(
             controls_frame,
             text="Recalibrate",
             command=self._request_recalibration,
-            style="Secondary.TButton",
+            corner_radius=10,
+            height=36,
         )
-        self.recalibrate_button.grid(row=0, column=1, padx=(6, 0), sticky=tk.EW)
+        recalibrate_button.grid(row=1, column=1, padx=(6, 12), pady=(8, 12), sticky=tk.EW)
+        self.recalibrate_button = recalibrate_button
 
-        settings_frame = ttk.LabelFrame(container, text="Settings", style="Section.TLabelframe")
-        settings_frame.grid(row=2, column=0, sticky=tk.EW)
+        settings_frame = ctk.CTkFrame(container, corner_radius=10)
+        settings_frame.grid(row=2, column=0, sticky=tk.EW, padx=10, pady=(0, 8))
         settings_frame.columnconfigure(0, weight=1)
 
-        ttk.Label(settings_frame, text="Sensitivity preset", style="Body.TLabel").grid(
+        ctk.CTkLabel(
+            settings_frame,
+            text="Settings",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, sticky=tk.W, padx=12, pady=(10, 2))
+
+        ctk.CTkLabel(settings_frame, text="Sensitivity preset", font=ctk.CTkFont(size=12)).grid(
             row=0,
             column=0,
             sticky=tk.W,
-            pady=(0, 4),
+            padx=12,
+            pady=(34, 4),
         )
 
-        preset_dropdown = ttk.Combobox(
+        preset_dropdown = ctk.CTkComboBox(
             settings_frame,
             textvariable=self.preset_var,
             values=list(PRESET_THRESHOLDS.keys()),
-            state="readonly",
+            command=self._on_preset_selected,
+            corner_radius=8,
+            height=32,
         )
-        preset_dropdown.grid(row=1, column=0, sticky=tk.EW)
-        preset_dropdown.bind("<<ComboboxSelected>>", self._on_preset_selected)
+        preset_dropdown.grid(row=1, column=0, sticky=tk.EW, padx=12)
+        self.preset_dropdown = preset_dropdown
 
-        ttk.Label(settings_frame, text="Manual sensitivity (EAR threshold)", style="Body.TLabel").grid(
+        ctk.CTkLabel(settings_frame, text="Manual sensitivity (EAR threshold)", font=ctk.CTkFont(size=12)).grid(
             row=2,
             column=0,
             sticky=tk.W,
+            padx=12,
             pady=(10, 4),
         )
 
-        sensitivity_scale = ttk.Scale(
+        sensitivity_scale = ctk.CTkSlider(
             settings_frame,
-            from_=0.12,
-            to=0.35,
+            from_=0.12,  # type: ignore[arg-type]
+            to=0.35,  # type: ignore[arg-type]
             variable=self.sensitivity_var,
             command=self._on_sensitivity_changed,
+            number_of_steps=230,
+            height=16,
         )
-        sensitivity_scale.grid(row=3, column=0, sticky=tk.EW)
+        sensitivity_scale.grid(row=3, column=0, sticky=tk.EW, padx=12)
+        self.sensitivity_slider = sensitivity_scale
 
-        sensitivity_value = ttk.Label(
+        sensitivity_value = ctk.CTkLabel(
             settings_frame,
             textvariable=self.sensitivity_display_var,
-            style="Body.TLabel",
+            font=ctk.CTkFont(size=12),
         )
-        sensitivity_value.grid(row=4, column=0, sticky=tk.E, pady=(4, 0))
+        sensitivity_value.grid(row=4, column=0, sticky=tk.E, padx=12, pady=(4, 0))
 
-        cursor_toggle = ttk.Checkbutton(
+        cursor_toggle = ctk.CTkSwitch(
             settings_frame,
             text="Enable cursor control",
             variable=self.cursor_enabled_var,
+            onvalue=True,
+            offvalue=False,
             command=self._on_cursor_toggle,
         )
-        cursor_toggle.grid(row=5, column=0, sticky=tk.W, pady=(12, 0))
+        cursor_toggle.grid(row=5, column=0, sticky=tk.W, padx=12, pady=(12, 10))
+        self.cursor_switch = cursor_toggle
 
-        stats_frame = ttk.LabelFrame(container, text="Live Statistics", style="Section.TLabelframe")
-        stats_frame.grid(row=3, column=0, sticky=tk.EW, pady=(10, 0))
+        stats_frame = ctk.CTkFrame(container, corner_radius=10)
+        stats_frame.grid(row=3, column=0, sticky=tk.EW, padx=10, pady=(0, 10))
         stats_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(stats_frame, text="FPS", style="Body.TLabel").grid(row=0, column=0, sticky=tk.W)
-        ttk.Label(stats_frame, textvariable=self.fps_var, style="Body.TLabel").grid(row=0, column=1, sticky=tk.E)
+        ctk.CTkLabel(
+            stats_frame,
+            text="Live Statistics",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 6))
 
-        ttk.Label(stats_frame, text="Current EAR", style="Body.TLabel").grid(row=1, column=0, sticky=tk.W)
-        ttk.Label(stats_frame, textvariable=self.ear_var, style="Body.TLabel").grid(row=1, column=1, sticky=tk.E)
+        ctk.CTkLabel(stats_frame, text="FPS", font=ctk.CTkFont(size=12)).grid(
+            row=1,
+            column=0,
+            sticky=tk.W,
+            padx=12,
+        )
+        ctk.CTkLabel(stats_frame, textvariable=self.fps_var, font=ctk.CTkFont(size=12)).grid(
+            row=1,
+            column=1,
+            sticky=tk.E,
+            padx=12,
+        )
 
-        ttk.Label(stats_frame, text="Blink count", style="Body.TLabel").grid(row=2, column=0, sticky=tk.W)
-        ttk.Label(stats_frame, textvariable=self.blink_count_var, style="Body.TLabel").grid(
+        ctk.CTkLabel(stats_frame, text="Current EAR", font=ctk.CTkFont(size=12)).grid(
+            row=2,
+            column=0,
+            sticky=tk.W,
+            padx=12,
+        )
+        ctk.CTkLabel(stats_frame, textvariable=self.ear_var, font=ctk.CTkFont(size=12)).grid(
             row=2,
             column=1,
             sticky=tk.E,
+            padx=12,
         )
 
-        ttk.Label(stats_frame, text="Current threshold", style="Body.TLabel").grid(
+        ctk.CTkLabel(stats_frame, text="Blink count", font=ctk.CTkFont(size=12)).grid(
             row=3,
             column=0,
             sticky=tk.W,
+            padx=12,
         )
-        ttk.Label(stats_frame, textvariable=self.current_threshold_var, style="Body.TLabel").grid(
+        ctk.CTkLabel(stats_frame, textvariable=self.blink_count_var, font=ctk.CTkFont(size=12)).grid(
             row=3,
             column=1,
             sticky=tk.E,
+            padx=12,
+        )
+
+        ctk.CTkLabel(stats_frame, text="Current threshold", font=ctk.CTkFont(size=12)).grid(
+            row=4,
+            column=0,
+            sticky=tk.W,
+            padx=12,
+            pady=(0, 10),
+        )
+        ctk.CTkLabel(stats_frame, textvariable=self.current_threshold_var, font=ctk.CTkFont(size=12)).grid(
+            row=4,
+            column=1,
+            sticky=tk.E,
+            padx=12,
+            pady=(0, 10),
         )
 
         # Initialize slider from the default preset for predictable startup behavior.
@@ -250,7 +318,7 @@ class BlinkControlPanel:
         self._set_status("Stopped")
         self._set_interactions_enabled(True)
 
-    def _on_sensitivity_changed(self, _value: str) -> None:
+    def _on_sensitivity_changed(self, _value: float) -> None:
         """Apply sensitivity changes to the running detector when available."""
         self.sensitivity_display_var.set(f"{self.sensitivity_var.get():.3f}")
         if self.control is not None:
@@ -262,11 +330,11 @@ class BlinkControlPanel:
         if threshold is None:
             return
         self.sensitivity_var.set(threshold)
-        self._on_sensitivity_changed(str(threshold))
+        self._on_sensitivity_changed(threshold)
 
-    def _on_preset_selected(self, _event: tk.Event) -> None:
+    def _on_preset_selected(self, selected_value: str) -> None:
         """Handle preset dropdown changes and apply threshold in real time."""
-        self._apply_preset(self.preset_var.get())
+        self._apply_preset(selected_value)
 
     def _on_cursor_toggle(self) -> None:
         """Enable or disable action dispatching in the detector."""
@@ -295,11 +363,17 @@ class BlinkControlPanel:
 
     def _set_interactions_enabled(self, enabled: bool) -> None:
         """Enable or disable interactive controls during lifecycle transitions."""
-        state = tk.NORMAL if enabled else tk.DISABLED
+        state = "normal" if enabled else "disabled"
         if self.start_button is not None:
             self.start_button.configure(state=state)
         if self.recalibrate_button is not None:
             self.recalibrate_button.configure(state=state)
+        if self.preset_dropdown is not None:
+            self.preset_dropdown.configure(state=state)
+        if self.sensitivity_slider is not None:
+            self.sensitivity_slider.configure(state=state)
+        if self.cursor_switch is not None:
+            self.cursor_switch.configure(state=state)
 
     def _refresh_live_stats(self) -> None:
         """Pull a thread-safe live stats snapshot from the detector and update labels."""

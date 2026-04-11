@@ -14,6 +14,7 @@ This project is designed for accessibility use cases, technical demonstrations, 
 - Optimized frame processing for smoother real-time performance
 - Command-line controls for camera and calibration settings
 - Optional Tkinter desktop control panel with start/stop and live controls
+- Optional CustomTkinter desktop control panel with dark mode and live controls
 - Thread-safe UI/detector communication with robust start/stop lifecycle handling
 - Automatic download and caching of the Face Landmarker model on first run
 - Modular Python package structure for maintainability
@@ -87,6 +88,8 @@ Launch the desktop control panel:
 ```powershell
 python src\main.py --ui
 ```
+
+The desktop panel uses CustomTkinter with a dark theme, rounded controls, and improved spacing.
 
 For smoother performance on slower laptops, you can also reduce processing size:
 

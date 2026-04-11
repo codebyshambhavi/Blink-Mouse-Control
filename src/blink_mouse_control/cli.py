@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ui",
         action="store_true",
-        help="Launch the Tkinter desktop control panel.",
+        help="Launch the CustomTkinter desktop control panel.",
     )
     return parser
 
