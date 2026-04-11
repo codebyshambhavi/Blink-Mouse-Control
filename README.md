@@ -116,6 +116,7 @@ Desktop control panel includes:
 - Cursor control toggle (enable/disable click actions)
 - Recalibration button while running
 - Current status indicator (Running / Stopped)
+- Sectioned layout for Controls, Settings, and Status with clean spacing
 
 Suggested demo workflow:
 
