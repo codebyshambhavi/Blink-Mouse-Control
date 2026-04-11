@@ -6,13 +6,14 @@ This project is designed for accessibility use cases, technical demonstrations, 
 
 ## Features
 
-- Real-time facial landmark tracking with MediaPipe FaceMesh
+- Real-time facial landmark tracking with MediaPipe Face Landmarker (Tasks API)
 - Blink-based mouse actions for left click, right click, and hold behavior
 - Eye Aspect Ratio (EAR) detection for blink recognition
 - Persistent calibration to avoid repeated setup on every run
 - On-screen overlay showing EAR, FPS, and threshold values
 - Optimized frame processing for smoother real-time performance
 - Command-line controls for camera and calibration settings
+- Automatic download and caching of the Face Landmarker model on first run
 - Modular Python package structure for maintainability
 
 ## Tech Stack
@@ -28,6 +29,7 @@ This project is designed for accessibility use cases, technical demonstrations, 
 - Solves a practical accessibility problem rather than serving as a basic demo.
 - Combines computer vision, calibration, state management, and user feedback.
 - Demonstrates performance tuning and persistence for a better user experience.
+- Uses the modern MediaPipe Tasks API instead of legacy `mp.solutions` modules.
 - Uses a clean project structure suitable for real-world development.
 
 ## Demo
@@ -90,6 +92,8 @@ On Windows, you can also use:
 .\run.bat
 ```
 
+Note: On the first run, the app downloads the required `face_landmarker.task` model and caches it locally.
+
 When the app starts, calibration runs for a few seconds. Keep your face centered and look at the camera until the webcam window opens.
 
 Useful controls during runtime:
@@ -122,6 +126,7 @@ Blink_Project/
       ├── cli.py
       ├── config.py
       ├── detector.py
+      ├── model.py
       ├── settings.py
       ├── ui.py
       └── ear.py
