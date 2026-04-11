@@ -1,6 +1,6 @@
 # Blink Mouse Control
 
-Mouse control with eye movements and blinking using computer vision.
+Hands-free mouse click automation powered by eye blinks and real-time facial landmark tracking.
 
 ## 🚀 Features
 
@@ -10,7 +10,8 @@ Mouse control with eye movements and blinking using computer vision.
 - Double blink for right click
 - Long blink for click-and-hold behavior
 - Automatic EAR calibration at startup
-- Simple Windows launcher script for quick setup
+- Modular Python package structure suitable for scaling and maintenance
+- CLI options for camera index and calibration duration
 
 ## 🛠️ Tech Stack
 
@@ -30,12 +31,12 @@ Example:
 
 ## ⚙️ Installation
 
-1. Clone or open the project in VS Code.
+1. Clone the repository and open it in VS Code.
 2. Create and activate a virtual environment:
 
    ```powershell
-   python -m venv venv
-   .\venv\Scripts\Activate.ps1
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
    ```
 
 3. Install the dependencies:
@@ -44,7 +45,7 @@ Example:
    pip install -r requirements.txt
    ```
 
-4. If PowerShell blocks script execution, run:
+4. If PowerShell blocks script execution, allow it for the current session:
 
    ```powershell
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
@@ -52,13 +53,19 @@ Example:
 
 ## ▶️ Usage
 
-Run the application with either of the following:
+Run the application:
 
 ```powershell
 python src\main.py
 ```
 
-or on Windows:
+Or run with CLI options:
+
+```powershell
+python src\main.py --camera-index 0 --calibration-seconds 4
+```
+
+On Windows, you can also use:
 
 ```powershell
 .\run.bat
@@ -76,14 +83,21 @@ Suggested demo workflow:
 
 ```text
 Blink_Project/
+├── pyproject.toml
 ├── README.md
 ├── requirements.txt
 ├── run.bat
-├── presentation_notes.txt
 └── src/
-    ├── main.py
-    ├── blink_mouse_control.py
-    └── utils.py
+   ├── main.py
+   └── blink_mouse_control/
+      ├── __init__.py
+      ├── __main__.py
+      ├── actions.py
+      ├── calibration.py
+      ├── cli.py
+      ├── config.py
+      ├── detector.py
+      └── ear.py
 ```
 
 ## 🤝 Contributing
@@ -98,9 +112,15 @@ Contributions are welcome. If you'd like to improve the project:
 
 Please keep changes focused and include clear descriptions of any behavioral updates.
 
+Recommended contribution checklist:
+
+- Format and lint code before opening a PR
+- Add or update tests for behavior changes
+- Update README for any user-facing changes
+
 ## 📜 License
 
-License information has not been added yet. If you plan to publish this project, add a license file such as MIT, Apache 2.0, or GPL and update this section accordingly.
+This project is released under the MIT License.
 
 ## 🙋‍♀️ Author
 

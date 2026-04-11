@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blink-mouse-control"
+version = "0.1.0"
+description = "Hands-free mouse click control using eye blinks with OpenCV and MediaPipe"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Shambhavi" }
+]
+dependencies = [
+  "opencv-python>=4.9.0",
+  "mediapipe>=0.10.14",
+  "numpy>=1.26.0",
+  "pyautogui>=0.9.54"
+]
+
+[project.scripts]
+blink-mouse-control = "blink_mouse_control.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
