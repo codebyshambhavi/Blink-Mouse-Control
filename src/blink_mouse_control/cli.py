@@ -4,6 +4,7 @@ import argparse
 
 from .config import DetectionConfig
 from .detector import run_detection
+from .ui import launch_control_panel
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Hide the on-screen usage tips and status legend.",
     )
+    parser.add_argument(
+        "--ui",
+        action="store_true",
+        help="Launch the Tkinter desktop control panel.",
+    )
     return parser
 
 
@@ -67,7 +73,10 @@ def main() -> None:
     )
 
     print("Blink Mouse Control - starting...")
-    run_detection(config=config)
+    if args.ui:
+        launch_control_panel(config=config)
+    else:
+        run_detection(config=config)
     print("Program ended.")
 
 

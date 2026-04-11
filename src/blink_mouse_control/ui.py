@@ -1,64 +1,196 @@
-"""Overlay helpers for user-facing feedback."""
+"""Tkinter desktop control panel for Blink Mouse Control."""
 
 from __future__ import annotations
 
-from typing import Any
+import threading
+import tkinter as tk
+from tkinter import ttk
 
-import cv2
+from .config import DetectionConfig
+from .detector import DetectionControl, run_detection
 
 
-def draw_status_overlay(
-    frame: Any,
-    *,
-    smooth_ear: float | None,
-    ear_threshold: float,
-    fps: float,
-    help_enabled: bool,
-    using_saved_calibration: bool,
-) -> None:
-    """Draw status text that helps users understand what the app is doing."""
-    lines = []
-    if smooth_ear is not None:
-        lines.append(f"EAR: {smooth_ear:.3f}  Thr: {ear_threshold:.3f}")
-    else:
-        lines.append(f"Thr: {ear_threshold:.3f}")
+class BlinkControlPanel:
+    """Desktop UI to control the blink detection runtime."""
 
-    lines.append(f"FPS: {fps:.1f}")
-    lines.append("Saved calibration: on" if using_saved_calibration else "Saved calibration: off")
+    def __init__(self, config: DetectionConfig | None = None) -> None:
+        self.config = config or DetectionConfig()
+        self.control: DetectionControl | None = None
+        self.worker_thread: threading.Thread | None = None
 
-    y = 30
-    for line in lines:
-        cv2.putText(
-            frame,
-            line,
-            (10, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (10, 255, 10),
-            2,
+        self.root = tk.Tk()
+        self.root.title("Blink Mouse Control")
+        self.root.geometry("420x340")
+        self.root.resizable(False, False)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self.status_var = tk.StringVar(value="Stopped")
+        self.start_button_var = tk.StringVar(value="Start")
+        self.sensitivity_var = tk.DoubleVar(value=self.config.fallback_ear_threshold)
+        self.sensitivity_display_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
+        self.cursor_enabled_var = tk.BooleanVar(value=True)
+        self.recalibrate_button: ttk.Button | None = None
+
+        self._setup_style()
+
+        self._build_layout()
+        self._schedule_status_poll()
+
+    def _setup_style(self) -> None:
+        """Configure a compact, professional visual style for widgets."""
+        style = ttk.Style(self.root)
+        style.configure("Section.TLabelframe", padding=10)
+        style.configure("Section.TLabelframe.Label", font=("Segoe UI", 10, "bold"))
+        style.configure("StatusValue.TLabel", font=("Segoe UI", 10, "bold"))
+        style.configure("Body.TLabel", font=("Segoe UI", 9))
+        style.configure("Primary.TButton", padding=(8, 6))
+        style.configure("Secondary.TButton", padding=(8, 6))
+
+    def _build_layout(self) -> None:
+        """Build and place all UI widgets in the main window."""
+        container = ttk.Frame(self.root, padding=14)
+        container.pack(fill=tk.BOTH, expand=True)
+        container.columnconfigure(0, weight=1)
+
+        status_frame = ttk.LabelFrame(container, text="Status", style="Section.TLabelframe")
+        status_frame.grid(row=0, column=0, sticky=tk.EW, pady=(0, 10))
+        status_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(status_frame, text="System state", style="Body.TLabel").grid(
+            row=0,
+            column=0,
+            sticky=tk.W,
+            padx=(0, 10),
         )
-        y += 26
-
-    if help_enabled:
-        cv2.putText(
-            frame,
-            "ESC/Q: quit | R: recalibrate | S: save threshold",
-            (10, y + 4),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (255, 220, 120),
-            2,
+        ttk.Label(status_frame, textvariable=self.status_var, style="StatusValue.TLabel").grid(
+            row=0,
+            column=1,
+            sticky=tk.W,
         )
 
+        controls_frame = ttk.LabelFrame(container, text="Controls", style="Section.TLabelframe")
+        controls_frame.grid(row=1, column=0, sticky=tk.EW, pady=(0, 10))
+        controls_frame.columnconfigure(0, weight=1)
+        controls_frame.columnconfigure(1, weight=1)
 
-def draw_no_face_overlay(frame: Any) -> None:
-    """Display guidance when no face landmarks are detected."""
-    cv2.putText(
-        frame,
-        "Face not detected - align your face",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 0, 255),
-        2,
-    )
+        start_button = ttk.Button(
+            controls_frame,
+            textvariable=self.start_button_var,
+            command=self._toggle_start_stop,
+            style="Primary.TButton",
+        )
+        start_button.grid(row=0, column=0, padx=(0, 6), sticky=tk.EW)
+
+        self.recalibrate_button = ttk.Button(
+            controls_frame,
+            text="Recalibrate",
+            command=self._request_recalibration,
+            style="Secondary.TButton",
+        )
+        self.recalibrate_button.grid(row=0, column=1, padx=(6, 0), sticky=tk.EW)
+
+        settings_frame = ttk.LabelFrame(container, text="Settings", style="Section.TLabelframe")
+        settings_frame.grid(row=2, column=0, sticky=tk.EW)
+        settings_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(settings_frame, text="Sensitivity (EAR threshold)", style="Body.TLabel").grid(
+            row=0,
+            column=0,
+            sticky=tk.W,
+            pady=(0, 4),
+        )
+
+        sensitivity_scale = ttk.Scale(
+            settings_frame,
+            from_=0.12,
+            to=0.35,
+            variable=self.sensitivity_var,
+            command=self._on_sensitivity_changed,
+        )
+        sensitivity_scale.grid(row=1, column=0, sticky=tk.EW)
+
+        sensitivity_value = ttk.Label(
+            settings_frame,
+            textvariable=self.sensitivity_display_var,
+            style="Body.TLabel",
+        )
+        sensitivity_value.grid(row=2, column=0, sticky=tk.E, pady=(4, 0))
+
+        cursor_toggle = ttk.Checkbutton(
+            settings_frame,
+            text="Enable cursor control",
+            variable=self.cursor_enabled_var,
+            command=self._on_cursor_toggle,
+        )
+        cursor_toggle.grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
+
+    def _toggle_start_stop(self) -> None:
+        """Start or stop the background blink detection thread."""
+        if self._is_running():
+            self._stop_detection()
+            return
+
+        self.control = DetectionControl()
+        self.control.set_threshold_override(self.sensitivity_var.get())
+        self.control.set_cursor_control_enabled(self.cursor_enabled_var.get())
+
+        self.worker_thread = threading.Thread(
+            target=run_detection,
+            kwargs={"config": self.config, "control": self.control},
+            daemon=True,
+        )
+        self.worker_thread.start()
+        self._set_status("Running")
+        self.start_button_var.set("Stop")
+
+    def _stop_detection(self) -> None:
+        """Signal detection to stop and update UI status immediately."""
+        if self.control is not None:
+            self.control.request_stop()
+        self._set_status("Stopping...")
+        self.start_button_var.set("Start")
+
+    def _on_sensitivity_changed(self, _value: str) -> None:
+        """Apply sensitivity changes to the running detector when available."""
+        self.sensitivity_display_var.set(f"{self.sensitivity_var.get():.3f}")
+        if self.control is not None:
+            self.control.set_threshold_override(self.sensitivity_var.get())
+
+    def _on_cursor_toggle(self) -> None:
+        """Enable or disable action dispatching in the detector."""
+        if self.control is not None:
+            self.control.set_cursor_control_enabled(self.cursor_enabled_var.get())
+
+    def _request_recalibration(self) -> None:
+        """Ask the running detector to perform recalibration on the next iteration."""
+        if self.control is not None:
+            self.control.request_recalibration()
+
+    def _is_running(self) -> bool:
+        """Return True if the detector background thread is active."""
+        return self.worker_thread is not None and self.worker_thread.is_alive()
+
+    def _schedule_status_poll(self) -> None:
+        """Refresh UI state periodically to reflect worker thread status."""
+        if not self._is_running() and self.status_var.get() != "Stopped":
+            self._set_status("Stopped")
+            self.start_button_var.set("Start")
+        self.root.after(200, self._schedule_status_poll)
+
+    def _set_status(self, status: str) -> None:
+        """Set and normalize user-visible status text."""
+        self.status_var.set(status)
+
+    def _on_close(self) -> None:
+        """Gracefully stop detection before closing the UI window."""
+        self._stop_detection()
+        self.root.after(250, self.root.destroy)
+
+    def run(self) -> None:
+        """Run the Tkinter event loop."""
+        self.root.mainloop()
+
+
+def launch_control_panel(config: DetectionConfig | None = None) -> None:
+    """Start the desktop control panel."""
+    BlinkControlPanel(config=config).run()

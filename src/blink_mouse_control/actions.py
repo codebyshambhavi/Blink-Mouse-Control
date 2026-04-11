@@ -18,3 +18,16 @@ class MouseActions:
         pyautogui.mouseDown()
         time.sleep(hold_seconds)
         pyautogui.mouseUp()
+
+
+class NoOpMouseActions(MouseActions):
+    """Mouse action adapter that safely ignores all click requests."""
+
+    def left_click(self) -> None:
+        return
+
+    def right_click(self) -> None:
+        return
+
+    def hold_left_click(self, hold_seconds: float) -> None:
+        return

@@ -1,6 +1,7 @@
 """Real-time blink detection orchestration."""
 
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -11,13 +12,13 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
 
-from .actions import MouseActions
+from .actions import MouseActions, NoOpMouseActions
 from .calibration import calibrate_ear_threshold
 from .config import DetectionConfig, LEFT_EYE_LANDMARKS, RIGHT_EYE_LANDMARKS
 from .ear import calculate_ear
 from .model import ensure_model_available
 from .settings import RuntimeSettings, load_runtime_settings, save_runtime_settings
-from .ui import draw_no_face_overlay, draw_status_overlay
+from .overlay import draw_no_face_overlay, draw_status_overlay
 
 
 @dataclass
@@ -27,6 +28,48 @@ class BlinkState:
     in_blink: bool = False
     blink_start: float | None = None
     blink_times: list[float] = field(default_factory=list)
+
+
+@dataclass
+class DetectionControl:
+    """Thread-safe runtime control shared between UI and detector loop."""
+
+    stop_event: threading.Event = field(default_factory=threading.Event)
+    recalibrate_event: threading.Event = field(default_factory=threading.Event)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+    _threshold_override: float | None = None
+    _cursor_control_enabled: bool = True
+
+    def request_stop(self) -> None:
+        self.stop_event.set()
+
+    def should_stop(self) -> bool:
+        return self.stop_event.is_set()
+
+    def request_recalibration(self) -> None:
+        self.recalibrate_event.set()
+
+    def consume_recalibration_request(self) -> bool:
+        if self.recalibrate_event.is_set():
+            self.recalibrate_event.clear()
+            return True
+        return False
+
+    def set_threshold_override(self, value: float | None) -> None:
+        with self._lock:
+            self._threshold_override = value
+
+    def get_threshold_override(self) -> float | None:
+        with self._lock:
+            return self._threshold_override
+
+    def set_cursor_control_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self._cursor_control_enabled = enabled
+
+    def is_cursor_control_enabled(self) -> bool:
+        with self._lock:
+            return self._cursor_control_enabled
 
 
 def _open_camera(camera_index: int) -> cv2.VideoCapture:
@@ -162,9 +205,10 @@ def _load_or_calibrate_threshold(
     return threshold, False
 
 
-def run_detection(config: DetectionConfig | None = None) -> None:
+def run_detection(config: DetectionConfig | None = None, control: DetectionControl | None = None) -> None:
     """Start webcam and run blink detection until user presses ESC."""
     config = config or DetectionConfig()
+    control = control or DetectionControl()
 
     cap = _open_camera(config.camera_index)
     if not cap.isOpened():
@@ -172,6 +216,7 @@ def run_detection(config: DetectionConfig | None = None) -> None:
         return
 
     pyautogui_actions = MouseActions()
+    disabled_actions = NoOpMouseActions()
     model_path = ensure_model_available()
     base_options = mp_python.BaseOptions(model_asset_path=str(model_path))
     landmarker_options = mp_vision.FaceLandmarkerOptions(
@@ -208,6 +253,10 @@ def run_detection(config: DetectionConfig | None = None) -> None:
             print("[INFO] Detection started. Press ESC to quit.")
 
             while True:
+                if control.should_stop():
+                    print("[INFO] Stop requested.")
+                    break
+
                 ok, frame = _read_frame(cap)
                 if not ok:
                     print("[WARN] Could not read frame from camera.")
@@ -225,27 +274,45 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                 fps, previous_frame_timestamp = _compute_fps(previous_frame_timestamp, time.monotonic())
 
                 if results.face_landmarks:
+                    if control.consume_recalibration_request():
+                        print("[INFO] Recalibration requested.")
+                        ear_threshold = calibrate_ear_threshold(
+                            cap,
+                            face_mesh,
+                            LEFT_EYE_LANDMARKS,
+                            RIGHT_EYE_LANDMARKS,
+                            config,
+                        )
+                        state = BlinkState()
+                        ear_history.clear()
+
                     landmarks = results.face_landmarks[0]
                     left_ear = calculate_ear(LEFT_EYE_LANDMARKS, landmarks)
                     right_ear = calculate_ear(RIGHT_EYE_LANDMARKS, landmarks)
                     current_ear = (left_ear + right_ear) / 2.0
                     smooth_ear = _smooth_ear(ear_history, current_ear)
                     now = time.monotonic()
+                    active_threshold = control.get_threshold_override() or ear_threshold
+                    active_actions = (
+                        pyautogui_actions
+                        if control.is_cursor_control_enabled()
+                        else disabled_actions
+                    )
 
                     _update_blink_state(
                         smooth_ear,
-                        ear_threshold,
+                        active_threshold,
                         now,
                         state,
-                        pyautogui_actions,
+                        active_actions,
                         config,
                     )
-                    _dispatch_click_actions(now, state, pyautogui_actions, config)
+                    _dispatch_click_actions(now, state, active_actions, config)
 
                     draw_status_overlay(
                         display_frame,
                         smooth_ear=smooth_ear,
-                        ear_threshold=ear_threshold,
+                        ear_threshold=active_threshold,
                         fps=fps,
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
@@ -267,6 +334,8 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                 if key in (ord("q"), ord("Q")):
                     print("[INFO] Quit requested by user.")
                     break
+                if key in (ord("r"), ord("R")):
+                    control.request_recalibration()
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user.")
     except cv2.error as exc:

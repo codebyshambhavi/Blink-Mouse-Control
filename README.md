@@ -13,6 +13,7 @@ This project is designed for accessibility use cases, technical demonstrations, 
 - On-screen overlay showing EAR, FPS, and threshold values
 - Optimized frame processing for smoother real-time performance
 - Command-line controls for camera and calibration settings
+- Optional Tkinter desktop control panel with start/stop and live controls
 - Automatic download and caching of the Face Landmarker model on first run
 - Modular Python package structure for maintainability
 
@@ -80,6 +81,12 @@ Or run with CLI options:
 python src\main.py --camera-index 0 --calibration-seconds 4
 ```
 
+Launch the desktop control panel:
+
+```powershell
+python src\main.py --ui
+```
+
 For smoother performance on slower laptops, you can also reduce processing size:
 
 ```powershell
@@ -101,6 +108,14 @@ Useful controls during runtime:
 - Press `ESC` or `Q` to quit
 - Use `--no-saved-calibration` to force a fresh calibration on startup
 - Use `--no-help-overlay` to hide the status and shortcut overlay
+
+Desktop control panel includes:
+
+- Start/Stop button for detection
+- Sensitivity slider for blink threshold override
+- Cursor control toggle (enable/disable click actions)
+- Recalibration button while running
+- Current status indicator (Running / Stopped)
 
 Suggested demo workflow:
 
@@ -127,6 +142,7 @@ Blink_Project/
       ├── config.py
       ├── detector.py
       ├── model.py
+      ├── overlay.py
       ├── settings.py
       ├── ui.py
       └── ear.py
