@@ -24,6 +24,8 @@ class BlinkControlPanel:
         self.config = config or DetectionConfig()
         self.control: DetectionControl | None = None
         self.worker_thread: threading.Thread | None = None
+        self._is_closing = False
+        self._stop_in_progress = False
 
         self.root = tk.Tk()
         self.root.title("Blink Mouse Control")
@@ -42,6 +44,7 @@ class BlinkControlPanel:
         self.blink_count_var = tk.StringVar(value="0")
         self.current_threshold_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
         self.recalibrate_button: ttk.Button | None = None
+        self.start_button: ttk.Button | None = None
 
         self._setup_style()
 
@@ -92,6 +95,7 @@ class BlinkControlPanel:
             style="Primary.TButton",
         )
         start_button.grid(row=0, column=0, padx=(0, 6), sticky=tk.EW)
+        self.start_button = start_button
 
         self.recalibrate_button = ttk.Button(
             controls_frame,
@@ -185,8 +189,14 @@ class BlinkControlPanel:
 
     def _toggle_start_stop(self) -> None:
         """Start or stop the background blink detection thread."""
+        if self._stop_in_progress:
+            return
+
         if self._is_running():
             self._stop_detection()
+            return
+
+        if self.status_var.get() == "Stopping...":
             return
 
         self.control = DetectionControl()
@@ -196,18 +206,49 @@ class BlinkControlPanel:
         self.worker_thread = threading.Thread(
             target=run_detection,
             kwargs={"config": self.config, "control": self.control},
-            daemon=True,
+            daemon=False,
         )
         self.worker_thread.start()
         self._set_status("Running")
         self.start_button_var.set("Stop")
+        self._set_interactions_enabled(True)
 
     def _stop_detection(self) -> None:
         """Signal detection to stop and update UI status immediately."""
-        if self.control is not None:
-            self.control.request_stop()
+        if self._stop_in_progress:
+            return
+
+        if self.control is None:
+            self._set_status("Stopped")
+            return
+
+        self._stop_in_progress = True
+        self.control.request_stop()
         self._set_status("Stopping...")
+        self.start_button_var.set("Stopping...")
+        self._set_interactions_enabled(False)
+        self._wait_for_worker_stop()
+
+    def _wait_for_worker_stop(self) -> None:
+        """Poll worker thread completion without blocking the Tk main loop."""
+        if self.worker_thread is not None and self.worker_thread.is_alive():
+            self.root.after(100, self._wait_for_worker_stop)
+            return
+
+        if self.control is not None:
+            self.control.wait_until_stopped(timeout=0.0)
+
+        self.worker_thread = None
+        self.control = None
+        self._stop_in_progress = False
         self.start_button_var.set("Start")
+
+        if self._is_closing:
+            self.root.destroy()
+            return
+
+        self._set_status("Stopped")
+        self._set_interactions_enabled(True)
 
     def _on_sensitivity_changed(self, _value: str) -> None:
         """Apply sensitivity changes to the running detector when available."""
@@ -244,10 +285,21 @@ class BlinkControlPanel:
     def _schedule_status_poll(self) -> None:
         """Refresh UI state periodically to reflect worker thread status."""
         self._refresh_live_stats()
-        if not self._is_running() and self.status_var.get() != "Stopped":
+        if not self._is_running() and not self._stop_in_progress and self.status_var.get() not in (
+            "Stopped",
+            "Starting...",
+        ):
             self._set_status("Stopped")
             self.start_button_var.set("Start")
         self.root.after(200, self._schedule_status_poll)
+
+    def _set_interactions_enabled(self, enabled: bool) -> None:
+        """Enable or disable interactive controls during lifecycle transitions."""
+        state = tk.NORMAL if enabled else tk.DISABLED
+        if self.start_button is not None:
+            self.start_button.configure(state=state)
+        if self.recalibrate_button is not None:
+            self.recalibrate_button.configure(state=state)
 
     def _refresh_live_stats(self) -> None:
         """Pull a thread-safe live stats snapshot from the detector and update labels."""
@@ -279,8 +331,13 @@ class BlinkControlPanel:
 
     def _on_close(self) -> None:
         """Gracefully stop detection before closing the UI window."""
-        self._stop_detection()
-        self.root.after(250, self.root.destroy)
+        self._is_closing = True
+
+        if self._is_running() or self._stop_in_progress:
+            self._stop_detection()
+            return
+
+        self.root.destroy()
 
     def run(self) -> None:
         """Run the Tkinter event loop."""

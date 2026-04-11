@@ -1,7 +1,7 @@
 """Calibration routines for personalized EAR threshold selection."""
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import cv2
@@ -45,6 +45,7 @@ def calibrate_ear_threshold(
     left_eye_indices: Sequence[int],
     right_eye_indices: Sequence[int],
     config: DetectionConfig,
+    stop_check: Callable[[], bool] | None = None,
 ) -> float:
     """Collect EAR samples for a short time and derive a threshold."""
     print(
@@ -55,6 +56,10 @@ def calibrate_ear_threshold(
     ear_samples: list[float] = []
 
     while time.monotonic() - start < config.calibration_time_seconds:
+        if stop_check is not None and stop_check():
+            print("[CALIBRATION] Stop requested.")
+            break
+
         try:
             ok, frame = cap.read()
         except cv2.error as exc:

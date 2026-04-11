@@ -14,6 +14,7 @@ This project is designed for accessibility use cases, technical demonstrations, 
 - Optimized frame processing for smoother real-time performance
 - Command-line controls for camera and calibration settings
 - Optional Tkinter desktop control panel with start/stop and live controls
+- Thread-safe UI/detector communication with robust start/stop lifecycle handling
 - Automatic download and caching of the Face Landmarker model on first run
 - Modular Python package structure for maintainability
 

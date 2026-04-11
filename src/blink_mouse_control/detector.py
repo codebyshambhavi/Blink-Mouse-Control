@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+from collections.abc import Callable
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -35,6 +36,7 @@ class DetectionControl:
     """Thread-safe runtime control shared between UI and detector loop."""
 
     stop_event: threading.Event = field(default_factory=threading.Event)
+    finished_event: threading.Event = field(default_factory=threading.Event)
     recalibrate_event: threading.Event = field(default_factory=threading.Event)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _threshold_override: float | None = None
@@ -43,6 +45,22 @@ class DetectionControl:
     _current_fps: float = 0.0
     _current_ear: float | None = None
     _current_threshold: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Initialize lifecycle flags to a stopped state."""
+        self.finished_event.set()
+
+    def mark_started(self) -> None:
+        """Mark detector worker as running."""
+        self.finished_event.clear()
+
+    def mark_stopped(self) -> None:
+        """Mark detector worker as stopped."""
+        self.finished_event.set()
+
+    def wait_until_stopped(self, timeout: float | None = None) -> bool:
+        """Wait until worker thread signals stop completion."""
+        return self.finished_event.wait(timeout=timeout)
 
     def request_stop(self) -> None:
         self.stop_event.set()
@@ -207,6 +225,7 @@ def _load_or_calibrate_threshold(
     cap: cv2.VideoCapture,
     face_mesh: Any,
     config: DetectionConfig,
+    stop_check: Callable[[], bool] | None = None,
 ) -> tuple[float, bool]:
     """Use a saved threshold when available, otherwise calibrate and optionally save it."""
     saved_settings = load_runtime_settings() if config.use_saved_calibration else None
@@ -224,6 +243,7 @@ def _load_or_calibrate_threshold(
         LEFT_EYE_LANDMARKS,
         RIGHT_EYE_LANDMARKS,
         config,
+        stop_check=stop_check,
     )
 
     if config.save_calibration_after_run:
@@ -243,26 +263,29 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
     """Start webcam and run blink detection until user presses ESC."""
     config = config or DetectionConfig()
     control = control or DetectionControl()
+    control.mark_started()
 
     cap = _open_camera(config.camera_index)
     if not cap.isOpened():
         print("[ERROR] Could not open webcam. Check camera permissions or another app using it.")
+        control.mark_stopped()
         return
 
     pyautogui_actions = MouseActions()
     disabled_actions = NoOpMouseActions()
-    model_path = ensure_model_available()
-    base_options = mp_python.BaseOptions(model_asset_path=str(model_path))
-    landmarker_options = mp_vision.FaceLandmarkerOptions(
-        base_options=base_options,
-        running_mode=mp_vision.RunningMode.VIDEO,
-        num_faces=config.max_num_faces,
-        min_face_detection_confidence=config.min_detection_confidence,
-        min_face_presence_confidence=config.min_detection_confidence,
-        min_tracking_confidence=config.min_detection_confidence,
-    )
 
     try:
+        model_path = ensure_model_available()
+        base_options = mp_python.BaseOptions(model_asset_path=str(model_path))
+        landmarker_options = mp_vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=mp_vision.RunningMode.VIDEO,
+            num_faces=config.max_num_faces,
+            min_face_detection_confidence=config.min_detection_confidence,
+            min_face_presence_confidence=config.min_detection_confidence,
+            min_tracking_confidence=config.min_detection_confidence,
+        )
+
         _configure_camera(cap, config)
         with mp_vision.FaceLandmarker.create_from_options(landmarker_options) as face_mesh:
             try:
@@ -270,6 +293,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                     cap,
                     face_mesh,
                     config,
+                    stop_check=control.should_stop,
                 )
             except Exception as exc:
                 print(f"[WARN] Calibration failed: {exc}")
@@ -317,6 +341,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                             LEFT_EYE_LANDMARKS,
                             RIGHT_EYE_LANDMARKS,
                             config,
+                            stop_check=control.should_stop,
                         )
                         state = BlinkState()
                         ear_history.clear()
@@ -390,3 +415,4 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
     finally:
         cap.release()
         cv2.destroyAllWindows()
+        control.mark_stopped()
