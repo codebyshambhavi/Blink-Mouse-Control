@@ -8,11 +8,14 @@ from typing import Any
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
 
 from .actions import MouseActions
 from .calibration import calibrate_ear_threshold
 from .config import DetectionConfig, LEFT_EYE_LANDMARKS, RIGHT_EYE_LANDMARKS
 from .ear import calculate_ear
+from .model import ensure_model_available
 from .settings import RuntimeSettings, load_runtime_settings, save_runtime_settings
 from .ui import draw_no_face_overlay, draw_status_overlay
 
@@ -169,16 +172,20 @@ def run_detection(config: DetectionConfig | None = None) -> None:
         return
 
     pyautogui_actions = MouseActions()
-    mp_face_mesh = mp.solutions.face_mesh
-    mp_drawing = mp.solutions.drawing_utils
+    model_path = ensure_model_available()
+    base_options = mp_python.BaseOptions(model_asset_path=str(model_path))
+    landmarker_options = mp_vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        running_mode=mp_vision.RunningMode.VIDEO,
+        num_faces=config.max_num_faces,
+        min_face_detection_confidence=config.min_detection_confidence,
+        min_face_presence_confidence=config.min_detection_confidence,
+        min_tracking_confidence=config.min_detection_confidence,
+    )
 
     try:
         _configure_camera(cap, config)
-        with mp_face_mesh.FaceMesh(
-            max_num_faces=config.max_num_faces,
-            refine_landmarks=config.refine_landmarks,
-            min_detection_confidence=config.min_detection_confidence,
-        ) as face_mesh:
+        with mp_vision.FaceLandmarker.create_from_options(landmarker_options) as face_mesh:
             try:
                 ear_threshold, using_saved_calibration = _load_or_calibrate_threshold(
                     cap,
@@ -195,8 +202,8 @@ def run_detection(config: DetectionConfig | None = None) -> None:
             previous_frame_timestamp: float | None = None
 
             # Pre-create drawing specs once to reduce per-frame allocations.
-            mesh_spec = mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
-            contour_spec = mp_drawing.DrawingSpec(color=(0, 128, 255), thickness=1)
+            mesh_spec = mp_vision.drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
+            contour_spec = mp_vision.drawing_utils.DrawingSpec(color=(0, 128, 255), thickness=1)
 
             print("[INFO] Detection started. Press ESC to quit.")
 
@@ -205,15 +212,20 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                 if not ok:
                     print("[WARN] Could not read frame from camera.")
                     break
+                if frame is None:
+                    print("[WARN] Camera returned an empty frame.")
+                    break
 
                 frame_small = cv2.resize(frame, config.process_size)
                 display_frame = cv2.resize(frame_small, config.frame_size)
                 rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
-                results = face_mesh.process(rgb)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                timestamp_ms = time.monotonic_ns() // 1_000_000
+                results = face_mesh.detect_for_video(mp_image, timestamp_ms)
                 fps, previous_frame_timestamp = _compute_fps(previous_frame_timestamp, time.monotonic())
 
-                if results.multi_face_landmarks:
-                    landmarks = results.multi_face_landmarks[0].landmark
+                if results.face_landmarks:
+                    landmarks = results.face_landmarks[0]
                     left_ear = calculate_ear(LEFT_EYE_LANDMARKS, landmarks)
                     right_ear = calculate_ear(RIGHT_EYE_LANDMARKS, landmarks)
                     current_ear = (left_ear + right_ear) / 2.0
@@ -238,10 +250,10 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
                     )
-                    mp_drawing.draw_landmarks(
+                    mp_vision.drawing_utils.draw_landmarks(
                         display_frame,
-                        results.multi_face_landmarks[0],
-                        mp_face_mesh.FACEMESH_TESSELATION,
+                        results.face_landmarks[0],
+                        mp_vision.FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION,
                         mesh_spec,
                         contour_spec,
                     )

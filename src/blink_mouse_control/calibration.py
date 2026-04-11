@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import cv2
+import mediapipe as mp
 
 from .config import DetectionConfig
 from .ear import calculate_ear, compute_threshold_from_samples
@@ -16,10 +17,10 @@ def _extract_average_ear(
     right_eye_indices: Sequence[int],
 ) -> float | None:
     """Return average EAR for detected face landmarks, else None."""
-    if not results.multi_face_landmarks:
+    if not results.face_landmarks:
         return None
 
-    landmarks = results.multi_face_landmarks[0].landmark
+    landmarks = results.face_landmarks[0]
     left_ear = calculate_ear(left_eye_indices, landmarks)
     right_ear = calculate_ear(right_eye_indices, landmarks)
     return (left_ear + right_ear) / 2.0
@@ -65,7 +66,9 @@ def calibrate_ear_threshold(
 
         frame_small = cv2.resize(frame, config.calibration_preview_size)
         rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
-        results = face_mesh.process(rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        timestamp_ms = time.monotonic_ns() // 1_000_000
+        results = face_mesh.detect_for_video(mp_image, timestamp_ms)
 
         average_ear = _extract_average_ear(results, left_eye_indices, right_eye_indices)
         if average_ear is not None:
