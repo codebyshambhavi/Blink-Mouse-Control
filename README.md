@@ -1,28 +1,107 @@
-# AI-Based Eye Blink Detection (Blink Mouse Control)
+# Blink Mouse Control
 
-## Summary
-Real-time blink detection using MediaPipe FaceMesh and Eye Aspect Ratio (EAR).
-Actions:
-- Single blink -> Left click
-- Double blink -> Right click
-- Long blink -> Hold left click briefly
+Mouse control with eye movements and blinking using computer vision.
 
-## Setup (Windows)
-1. Open project folder in VS Code.
-2. Activate venv in terminal:
+## 🚀 Features
+
+- Real-time face tracking with MediaPipe FaceMesh
+- Blink detection using Eye Aspect Ratio (EAR)
+- Single blink for left click
+- Double blink for right click
+- Long blink for click-and-hold behavior
+- Automatic EAR calibration at startup
+- Simple Windows launcher script for quick setup
+
+## 🛠️ Tech Stack
+
+- Python
+- OpenCV
+- MediaPipe
+- NumPy
+- PyAutoGUI
+
+## 📸 Demo
+
+Add a GIF or short screen recording here.
+
+Example:
+
+![Demo](assets/demo.gif)
+
+## ⚙️ Installation
+
+1. Clone or open the project in VS Code.
+2. Create and activate a virtual environment:
+
+   ```powershell
+   python -m venv venv
    .\venv\Scripts\Activate.ps1
-   (If PowerShell blocks: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process)
-3. Install dependencies (if not already):
+   ```
+
+3. Install the dependencies:
+
+   ```powershell
    pip install -r requirements.txt
-4. Run:
-   python src\main.py
-   or double-click run.bat
+   ```
 
-## Demo tips
-- Open Notepad or Paint and place the cursor where clicks will be visible.
-- Use consistent lighting and keep your face centered in the webcam during calibration.
-- Calibration will run for ~4 seconds when the program starts.
+4. If PowerShell blocks script execution, run:
 
-## Notes
-- Tested on Python 3.10 with packages: mediapipe, opencv-python, numpy, pyautogui.
-- On macOS you must allow Accessibility permission for synthetic mouse actions.
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+   ```
+
+## ▶️ Usage
+
+Run the application with either of the following:
+
+```powershell
+python src\main.py
+```
+
+or on Windows:
+
+```powershell
+.\run.bat
+```
+
+When the app starts, calibration runs for a few seconds. Keep your face centered and look at the camera until the webcam window opens.
+
+Suggested demo workflow:
+
+- Open Notepad, Paint, or any text field where clicks are easy to see.
+- Keep good lighting and avoid moving too much during calibration.
+- Use single blinks, double blinks, and long blinks to test the mouse actions.
+
+## 📂 Project Structure
+
+```text
+Blink_Project/
+├── README.md
+├── requirements.txt
+├── run.bat
+├── presentation_notes.txt
+└── src/
+    ├── main.py
+    ├── blink_mouse_control.py
+    └── utils.py
+```
+
+## 🤝 Contributing
+
+Contributions are welcome. If you'd like to improve the project:
+
+- Fork the repository
+- Create a feature branch
+- Make your changes
+- Test the app locally
+- Submit a pull request
+
+Please keep changes focused and include clear descriptions of any behavioral updates.
+
+## 📜 License
+
+License information has not been added yet. If you plan to publish this project, add a license file such as MIT, Apache 2.0, or GPL and update this section accordingly.
+
+## 🙋‍♀️ Author
+
+**Shambhavi**
