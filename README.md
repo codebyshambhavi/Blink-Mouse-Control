@@ -32,9 +32,13 @@ This project is designed for accessibility use cases, technical demonstrations, 
 
 ## Demo
 
-Add a short GIF or screen recording here to demonstrate the interaction.
+This demo shows real-time blink-based mouse control with eye tracking and a live overlay.
 
-Example:
+- Blink triggers mouse clicks
+- Overlay displays EAR, threshold, and FPS
+- Calibration runs at startup for stable detection
+
+Add a short GIF or screen recording here to demonstrate the interaction.
 
 ![Demo](assets/demo.gif)
 
