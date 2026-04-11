@@ -1,23 +1,49 @@
-venv/
+# Virtual environments
 .venv/
-ENV/
+venv/
 env/
+ENV/
 
+# Python cache/compiled files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.log
+*.py[cod]
+*$py.class
 
+# Tool caches
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pyre/
+.hypothesis/
 
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Build / packaging
 build/
 dist/
+site/
+.eggs/
 *.egg-info/
+pip-wheel-metadata/
 
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
 .DS_Store
 Thumbs.db
 
+# IDE/editor
+.idea/
 .vscode/.ropeproject/
+
+# Optional: ignore all VS Code config except shared launch/settings
+# .vscode/*
+# !.vscode/settings.json
+# !.vscode/launch.json
