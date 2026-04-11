@@ -1,19 +1,21 @@
 # Blink Mouse Control
 
-Hands-free mouse click automation powered by eye blinks and real-time facial landmark tracking.
+Hands-free mouse control using real-time facial landmark tracking and blink detection.
 
-## 🚀 Features
+This project is designed for accessibility use cases, technical demonstrations, and internship portfolios.
 
-- Real-time face tracking with MediaPipe FaceMesh
-- Blink detection using Eye Aspect Ratio (EAR)
-- Single blink for left click
-- Double blink for right click
-- Long blink for click-and-hold behavior
-- Automatic EAR calibration at startup
-- Modular Python package structure suitable for scaling and maintenance
-- CLI options for camera index and calibration duration
+## Features
 
-## 🛠️ Tech Stack
+- Real-time facial landmark tracking with MediaPipe FaceMesh
+- Blink-based mouse actions for left click, right click, and hold behavior
+- Eye Aspect Ratio (EAR) detection for blink recognition
+- Persistent calibration to avoid repeated setup on every run
+- On-screen overlay showing EAR, FPS, and threshold values
+- Optimized frame processing for smoother real-time performance
+- Command-line controls for camera and calibration settings
+- Modular Python package structure for maintainability
+
+## Tech Stack
 
 - Python
 - OpenCV
@@ -21,15 +23,22 @@ Hands-free mouse click automation powered by eye blinks and real-time facial lan
 - NumPy
 - PyAutoGUI
 
-## 📸 Demo
+## Why This Project Stands Out
 
-Add a GIF or short screen recording here.
+- Solves a practical accessibility problem rather than serving as a basic demo.
+- Combines computer vision, calibration, state management, and user feedback.
+- Demonstrates performance tuning and persistence for a better user experience.
+- Uses a clean project structure suitable for real-world development.
+
+## Demo
+
+Add a short GIF or screen recording here to demonstrate the interaction.
 
 Example:
 
 ![Demo](assets/demo.gif)
 
-## ⚙️ Installation
+## Installation
 
 1. Clone the repository and open it in VS Code.
 2. Create and activate a virtual environment:
@@ -51,7 +60,7 @@ Example:
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
    ```
 
-## ▶️ Usage
+## Usage
 
 Run the application:
 
@@ -65,6 +74,12 @@ Or run with CLI options:
 python src\main.py --camera-index 0 --calibration-seconds 4
 ```
 
+For smoother performance on slower laptops, you can also reduce processing size:
+
+```powershell
+python src\main.py --process-width 640 --process-height 360
+```
+
 On Windows, you can also use:
 
 ```powershell
@@ -73,13 +88,19 @@ On Windows, you can also use:
 
 When the app starts, calibration runs for a few seconds. Keep your face centered and look at the camera until the webcam window opens.
 
+Useful controls during runtime:
+
+- Press `ESC` or `Q` to quit
+- Use `--no-saved-calibration` to force a fresh calibration on startup
+- Use `--no-help-overlay` to hide the status and shortcut overlay
+
 Suggested demo workflow:
 
-- Open Notepad, Paint, or any text field where clicks are easy to see.
-- Keep good lighting and avoid moving too much during calibration.
-- Use single blinks, double blinks, and long blinks to test the mouse actions.
+- Open Notepad, Paint, or any text field where clicks are easy to observe.
+- Keep good lighting and remain centered during calibration.
+- Test single blinks, double blinks, and long blinks to verify the actions.
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 Blink_Project/
@@ -97,10 +118,19 @@ Blink_Project/
       ├── cli.py
       ├── config.py
       ├── detector.py
+      ├── settings.py
+      ├── ui.py
       └── ear.py
 ```
 
-## 🤝 Contributing
+## Future Improvements
+
+- Eye-movement cursor control
+- Sensitivity presets for different users
+- Keyboard shortcuts for quick mode switching
+- Test suite and CI pipeline for automated quality checks
+
+## Contributing
 
 Contributions are welcome. If you'd like to improve the project:
 
@@ -118,10 +148,10 @@ Recommended contribution checklist:
 - Add or update tests for behavior changes
 - Update README for any user-facing changes
 
-## 📜 License
+## License
 
 This project is released under the MIT License.
 
-## 🙋‍♀️ Author
+## Author
 
 **Shambhavi**
