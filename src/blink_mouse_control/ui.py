@@ -10,6 +10,13 @@ from .config import DetectionConfig
 from .detector import DetectionControl, run_detection
 
 
+PRESET_THRESHOLDS = {
+    "Low": 0.18,
+    "Medium": 0.22,
+    "High": 0.26,
+}
+
+
 class BlinkControlPanel:
     """Desktop UI to control the blink detection runtime."""
 
@@ -20,7 +27,7 @@ class BlinkControlPanel:
 
         self.root = tk.Tk()
         self.root.title("Blink Mouse Control")
-        self.root.geometry("420x340")
+        self.root.geometry("420x390")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -28,6 +35,7 @@ class BlinkControlPanel:
         self.start_button_var = tk.StringVar(value="Start")
         self.sensitivity_var = tk.DoubleVar(value=self.config.fallback_ear_threshold)
         self.sensitivity_display_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
+        self.preset_var = tk.StringVar(value="Medium")
         self.cursor_enabled_var = tk.BooleanVar(value=True)
         self.recalibrate_button: ttk.Button | None = None
 
@@ -93,11 +101,27 @@ class BlinkControlPanel:
         settings_frame.grid(row=2, column=0, sticky=tk.EW)
         settings_frame.columnconfigure(0, weight=1)
 
-        ttk.Label(settings_frame, text="Sensitivity (EAR threshold)", style="Body.TLabel").grid(
+        ttk.Label(settings_frame, text="Sensitivity preset", style="Body.TLabel").grid(
             row=0,
             column=0,
             sticky=tk.W,
             pady=(0, 4),
+        )
+
+        preset_dropdown = ttk.Combobox(
+            settings_frame,
+            textvariable=self.preset_var,
+            values=list(PRESET_THRESHOLDS.keys()),
+            state="readonly",
+        )
+        preset_dropdown.grid(row=1, column=0, sticky=tk.EW)
+        preset_dropdown.bind("<<ComboboxSelected>>", self._on_preset_selected)
+
+        ttk.Label(settings_frame, text="Manual sensitivity (EAR threshold)", style="Body.TLabel").grid(
+            row=2,
+            column=0,
+            sticky=tk.W,
+            pady=(10, 4),
         )
 
         sensitivity_scale = ttk.Scale(
@@ -107,14 +131,14 @@ class BlinkControlPanel:
             variable=self.sensitivity_var,
             command=self._on_sensitivity_changed,
         )
-        sensitivity_scale.grid(row=1, column=0, sticky=tk.EW)
+        sensitivity_scale.grid(row=3, column=0, sticky=tk.EW)
 
         sensitivity_value = ttk.Label(
             settings_frame,
             textvariable=self.sensitivity_display_var,
             style="Body.TLabel",
         )
-        sensitivity_value.grid(row=2, column=0, sticky=tk.E, pady=(4, 0))
+        sensitivity_value.grid(row=4, column=0, sticky=tk.E, pady=(4, 0))
 
         cursor_toggle = ttk.Checkbutton(
             settings_frame,
@@ -122,7 +146,10 @@ class BlinkControlPanel:
             variable=self.cursor_enabled_var,
             command=self._on_cursor_toggle,
         )
-        cursor_toggle.grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
+        cursor_toggle.grid(row=5, column=0, sticky=tk.W, pady=(12, 0))
+
+        # Initialize slider from the default preset for predictable startup behavior.
+        self._apply_preset("Medium")
 
     def _toggle_start_stop(self) -> None:
         """Start or stop the background blink detection thread."""
@@ -155,6 +182,18 @@ class BlinkControlPanel:
         self.sensitivity_display_var.set(f"{self.sensitivity_var.get():.3f}")
         if self.control is not None:
             self.control.set_threshold_override(self.sensitivity_var.get())
+
+    def _apply_preset(self, preset_name: str) -> None:
+        """Apply a named sensitivity preset to the manual threshold value."""
+        threshold = PRESET_THRESHOLDS.get(preset_name)
+        if threshold is None:
+            return
+        self.sensitivity_var.set(threshold)
+        self._on_sensitivity_changed(str(threshold))
+
+    def _on_preset_selected(self, _event: tk.Event) -> None:
+        """Handle preset dropdown changes and apply threshold in real time."""
+        self._apply_preset(self.preset_var.get())
 
     def _on_cursor_toggle(self) -> None:
         """Enable or disable action dispatching in the detector."""

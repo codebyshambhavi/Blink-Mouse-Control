@@ -112,6 +112,7 @@ Useful controls during runtime:
 Desktop control panel includes:
 
 - Start/Stop button for detection
+- Sensitivity preset dropdown (Low, Medium, High)
 - Sensitivity slider for blink threshold override
 - Cursor control toggle (enable/disable click actions)
 - Recalibration button while running
