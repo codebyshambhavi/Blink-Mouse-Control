@@ -27,7 +27,7 @@ class BlinkControlPanel:
 
         self.root = tk.Tk()
         self.root.title("Blink Mouse Control")
-        self.root.geometry("420x390")
+        self.root.geometry("420x490")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -37,6 +37,10 @@ class BlinkControlPanel:
         self.sensitivity_display_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
         self.preset_var = tk.StringVar(value="Medium")
         self.cursor_enabled_var = tk.BooleanVar(value=True)
+        self.fps_var = tk.StringVar(value="0.0")
+        self.ear_var = tk.StringVar(value="-")
+        self.blink_count_var = tk.StringVar(value="0")
+        self.current_threshold_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
         self.recalibrate_button: ttk.Button | None = None
 
         self._setup_style()
@@ -148,6 +152,34 @@ class BlinkControlPanel:
         )
         cursor_toggle.grid(row=5, column=0, sticky=tk.W, pady=(12, 0))
 
+        stats_frame = ttk.LabelFrame(container, text="Live Statistics", style="Section.TLabelframe")
+        stats_frame.grid(row=3, column=0, sticky=tk.EW, pady=(10, 0))
+        stats_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(stats_frame, text="FPS", style="Body.TLabel").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(stats_frame, textvariable=self.fps_var, style="Body.TLabel").grid(row=0, column=1, sticky=tk.E)
+
+        ttk.Label(stats_frame, text="Current EAR", style="Body.TLabel").grid(row=1, column=0, sticky=tk.W)
+        ttk.Label(stats_frame, textvariable=self.ear_var, style="Body.TLabel").grid(row=1, column=1, sticky=tk.E)
+
+        ttk.Label(stats_frame, text="Blink count", style="Body.TLabel").grid(row=2, column=0, sticky=tk.W)
+        ttk.Label(stats_frame, textvariable=self.blink_count_var, style="Body.TLabel").grid(
+            row=2,
+            column=1,
+            sticky=tk.E,
+        )
+
+        ttk.Label(stats_frame, text="Current threshold", style="Body.TLabel").grid(
+            row=3,
+            column=0,
+            sticky=tk.W,
+        )
+        ttk.Label(stats_frame, textvariable=self.current_threshold_var, style="Body.TLabel").grid(
+            row=3,
+            column=1,
+            sticky=tk.E,
+        )
+
         # Initialize slider from the default preset for predictable startup behavior.
         self._apply_preset("Medium")
 
@@ -211,10 +243,35 @@ class BlinkControlPanel:
 
     def _schedule_status_poll(self) -> None:
         """Refresh UI state periodically to reflect worker thread status."""
+        self._refresh_live_stats()
         if not self._is_running() and self.status_var.get() != "Stopped":
             self._set_status("Stopped")
             self.start_button_var.set("Start")
         self.root.after(200, self._schedule_status_poll)
+
+    def _refresh_live_stats(self) -> None:
+        """Pull a thread-safe live stats snapshot from the detector and update labels."""
+        if self.control is None:
+            self.fps_var.set("0.0")
+            self.ear_var.set("-")
+            self.blink_count_var.set("0")
+            self.current_threshold_var.set(f"{self.sensitivity_var.get():.3f}")
+            return
+
+        stats = self.control.get_live_stats()
+        fps_value = stats.get("fps")
+        self.fps_var.set(f"{float(fps_value) if fps_value is not None else 0.0:.1f}")
+
+        ear = stats["ear"]
+        self.ear_var.set("-" if ear is None else f"{float(ear):.3f}")
+
+        blink_count_value = stats.get("blink_count")
+        self.blink_count_var.set(str(int(blink_count_value) if blink_count_value is not None else 0))
+
+        threshold_value = stats.get("threshold")
+        self.current_threshold_var.set(
+            f"{float(threshold_value) if threshold_value is not None else self.sensitivity_var.get():.3f}"
+        )
 
     def _set_status(self, status: str) -> None:
         """Set and normalize user-visible status text."""

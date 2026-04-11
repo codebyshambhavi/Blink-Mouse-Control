@@ -39,6 +39,10 @@ class DetectionControl:
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _threshold_override: float | None = None
     _cursor_control_enabled: bool = True
+    _blink_count: int = 0
+    _current_fps: float = 0.0
+    _current_ear: float | None = None
+    _current_threshold: float = 0.0
 
     def request_stop(self) -> None:
         self.stop_event.set()
@@ -70,6 +74,33 @@ class DetectionControl:
     def is_cursor_control_enabled(self) -> bool:
         with self._lock:
             return self._cursor_control_enabled
+
+    def increment_blink_count(self) -> None:
+        with self._lock:
+            self._blink_count += 1
+
+    def update_live_stats(
+        self,
+        *,
+        fps: float,
+        ear: float | None,
+        threshold: float,
+    ) -> None:
+        """Update live runtime statistics shown in the desktop UI."""
+        with self._lock:
+            self._current_fps = fps
+            self._current_ear = ear
+            self._current_threshold = threshold
+
+    def get_live_stats(self) -> dict[str, float | int | None]:
+        """Get a thread-safe snapshot of current runtime statistics."""
+        with self._lock:
+            return {
+                "fps": self._current_fps,
+                "ear": self._current_ear,
+                "blink_count": self._blink_count,
+                "threshold": self._current_threshold,
+            }
 
 
 def _open_camera(camera_index: int) -> cv2.VideoCapture:
@@ -105,6 +136,7 @@ def _complete_blink_if_needed(
     state: BlinkState,
     actions: MouseActions,
     config: DetectionConfig,
+    control: DetectionControl,
 ) -> None:
     """Finalize a blink and dispatch long-blink action when threshold is met."""
     if state.blink_start is None:
@@ -112,6 +144,7 @@ def _complete_blink_if_needed(
 
     duration = now - state.blink_start
     state.blink_times.append(now)
+    control.increment_blink_count()
     if duration >= config.long_blink_min_duration_seconds:
         print(f"[EVENT] LONG blink ({duration:.2f}s)")
         actions.hold_left_click(config.click_hold_duration_seconds)
@@ -125,6 +158,7 @@ def _update_blink_state(
     state: BlinkState,
     actions: MouseActions,
     config: DetectionConfig,
+    control: DetectionControl,
 ) -> None:
     """Track blink start/end transitions based on EAR threshold crossings."""
     if smooth_ear < ear_threshold:
@@ -134,7 +168,7 @@ def _update_blink_state(
         return
 
     if state.in_blink:
-        _complete_blink_if_needed(now, state, actions, config)
+        _complete_blink_if_needed(now, state, actions, config, control)
         state.in_blink = False
         state.blink_start = None
 
@@ -272,6 +306,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                 timestamp_ms = time.monotonic_ns() // 1_000_000
                 results = face_mesh.detect_for_video(mp_image, timestamp_ms)
                 fps, previous_frame_timestamp = _compute_fps(previous_frame_timestamp, time.monotonic())
+                active_threshold = control.get_threshold_override() or ear_threshold
 
                 if results.face_landmarks:
                     if control.consume_recalibration_request():
@@ -292,7 +327,6 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                     current_ear = (left_ear + right_ear) / 2.0
                     smooth_ear = _smooth_ear(ear_history, current_ear)
                     now = time.monotonic()
-                    active_threshold = control.get_threshold_override() or ear_threshold
                     active_actions = (
                         pyautogui_actions
                         if control.is_cursor_control_enabled()
@@ -306,8 +340,14 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         state,
                         active_actions,
                         config,
+                        control,
                     )
                     _dispatch_click_actions(now, state, active_actions, config)
+                    control.update_live_stats(
+                        fps=fps,
+                        ear=smooth_ear,
+                        threshold=active_threshold,
+                    )
 
                     draw_status_overlay(
                         display_frame,
@@ -326,6 +366,11 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                     )
                 else:
                     draw_no_face_overlay(display_frame)
+                    control.update_live_stats(
+                        fps=fps,
+                        ear=None,
+                        threshold=active_threshold,
+                    )
 
                 cv2.imshow("Eye Blink Mouse Control", display_frame)
                 key = cv2.waitKey(1) & 0xFF

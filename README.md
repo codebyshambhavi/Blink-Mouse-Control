@@ -117,6 +117,7 @@ Desktop control panel includes:
 - Cursor control toggle (enable/disable click actions)
 - Recalibration button while running
 - Current status indicator (Running / Stopped)
+- Live statistics panel (FPS, EAR, blink count, threshold)
 - Sectioned layout for Controls, Settings, and Status with clean spacing
 
 Suggested demo workflow:
