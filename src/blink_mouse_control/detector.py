@@ -13,6 +13,8 @@ from .actions import MouseActions
 from .calibration import calibrate_ear_threshold
 from .config import DetectionConfig, LEFT_EYE_LANDMARKS, RIGHT_EYE_LANDMARKS
 from .ear import calculate_ear
+from .settings import RuntimeSettings, load_runtime_settings, save_runtime_settings
+from .ui import draw_no_face_overlay, draw_status_overlay
 
 
 @dataclass
@@ -109,30 +111,52 @@ def _dispatch_click_actions(
         state.blink_times.clear()
 
 
-def _draw_ear_overlay(frame: Any, smooth_ear: float, ear_threshold: float) -> None:
-    """Draw EAR and threshold diagnostics on the frame."""
-    cv2.putText(
-        frame,
-        f"EAR: {smooth_ear:.3f}  Thr: {ear_threshold:.3f}",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (10, 255, 10),
-        2,
-    )
+def _compute_fps(previous_timestamp: float | None, current_timestamp: float) -> tuple[float, float]:
+    """Return current FPS and the updated frame timestamp."""
+    if previous_timestamp is None:
+        return 0.0, current_timestamp
+
+    elapsed = current_timestamp - previous_timestamp
+    if elapsed <= 0:
+        return 0.0, current_timestamp
+
+    return 1.0 / elapsed, current_timestamp
 
 
-def _draw_no_face_overlay(frame: Any) -> None:
-    """Display guidance when no face landmarks are detected."""
-    cv2.putText(
-        frame,
-        "Face not detected - align your face",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 0, 255),
-        2,
+def _load_or_calibrate_threshold(
+    cap: cv2.VideoCapture,
+    face_mesh: Any,
+    config: DetectionConfig,
+) -> tuple[float, bool]:
+    """Use a saved threshold when available, otherwise calibrate and optionally save it."""
+    saved_settings = load_runtime_settings() if config.use_saved_calibration else None
+    if saved_settings is not None:
+        same_camera = saved_settings.camera_index == config.camera_index
+        same_sizes = saved_settings.process_size == config.process_size
+        same_capture = saved_settings.camera_size == (config.camera_width, config.camera_height)
+        if same_camera and same_sizes and same_capture:
+            print("[INFO] Using saved calibration threshold.")
+            return saved_settings.calibration_threshold, True
+
+    threshold = calibrate_ear_threshold(
+        cap,
+        face_mesh,
+        LEFT_EYE_LANDMARKS,
+        RIGHT_EYE_LANDMARKS,
+        config,
     )
+
+    if config.save_calibration_after_run:
+        save_runtime_settings(
+            RuntimeSettings(
+                calibration_threshold=threshold,
+                camera_index=config.camera_index,
+                process_size=config.process_size,
+                camera_size=(config.camera_width, config.camera_height),
+            )
+        )
+
+    return threshold, False
 
 
 def run_detection(config: DetectionConfig | None = None) -> None:
@@ -141,7 +165,7 @@ def run_detection(config: DetectionConfig | None = None) -> None:
 
     cap = _open_camera(config.camera_index)
     if not cap.isOpened():
-        print("[ERROR] Could not open webcam.")
+        print("[ERROR] Could not open webcam. Check camera permissions or another app using it.")
         return
 
     pyautogui_actions = MouseActions()
@@ -156,19 +180,19 @@ def run_detection(config: DetectionConfig | None = None) -> None:
             min_detection_confidence=config.min_detection_confidence,
         ) as face_mesh:
             try:
-                ear_threshold = calibrate_ear_threshold(
+                ear_threshold, using_saved_calibration = _load_or_calibrate_threshold(
                     cap,
                     face_mesh,
-                    LEFT_EYE_LANDMARKS,
-                    RIGHT_EYE_LANDMARKS,
                     config,
                 )
             except Exception as exc:
                 print(f"[WARN] Calibration failed: {exc}")
                 ear_threshold = config.fallback_ear_threshold
+                using_saved_calibration = False
 
             ear_history: deque[float] = deque(maxlen=config.ear_smooth_window)
             state = BlinkState()
+            previous_frame_timestamp: float | None = None
 
             # Pre-create drawing specs once to reduce per-frame allocations.
             mesh_spec = mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
@@ -186,6 +210,7 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                 display_frame = cv2.resize(frame_small, config.frame_size)
                 rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
                 results = face_mesh.process(rgb)
+                fps, previous_frame_timestamp = _compute_fps(previous_frame_timestamp, time.monotonic())
 
                 if results.multi_face_landmarks:
                     landmarks = results.multi_face_landmarks[0].landmark
@@ -205,7 +230,14 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                     )
                     _dispatch_click_actions(now, state, pyautogui_actions, config)
 
-                    _draw_ear_overlay(display_frame, smooth_ear, ear_threshold)
+                    draw_status_overlay(
+                        display_frame,
+                        smooth_ear=smooth_ear,
+                        ear_threshold=ear_threshold,
+                        fps=fps,
+                        help_enabled=config.show_help_overlay,
+                        using_saved_calibration=using_saved_calibration,
+                    )
                     mp_drawing.draw_landmarks(
                         display_frame,
                         results.multi_face_landmarks[0],
@@ -214,7 +246,7 @@ def run_detection(config: DetectionConfig | None = None) -> None:
                         contour_spec,
                     )
                 else:
-                    _draw_no_face_overlay(display_frame)
+                    draw_no_face_overlay(display_frame)
 
                 cv2.imshow("Eye Blink Mouse Control", display_frame)
                 key = cv2.waitKey(1) & 0xFF

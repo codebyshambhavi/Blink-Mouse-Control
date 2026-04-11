@@ -23,6 +23,9 @@ class DetectionConfig:
     camera_width: int = 640
     camera_height: int = 360
     max_camera_fps: int = 30
+    use_saved_calibration: bool = True
+    show_help_overlay: bool = True
+    save_calibration_after_run: bool = True
 
 
 LEFT_EYE_LANDMARKS: tuple[int, int, int, int, int, int] = (33, 160, 158, 133, 153, 144)

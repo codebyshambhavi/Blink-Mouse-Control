@@ -40,6 +40,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=360,
         help="Requested camera capture height (default: 360)",
     )
+    parser.add_argument(
+        "--no-saved-calibration",
+        action="store_true",
+        help="Always calibrate on startup instead of reusing a saved threshold.",
+    )
+    parser.add_argument(
+        "--no-help-overlay",
+        action="store_true",
+        help="Hide the on-screen usage tips and status legend.",
+    )
     return parser
 
 
@@ -52,6 +62,8 @@ def main() -> None:
         process_size=(args.process_width, args.process_height),
         camera_width=args.camera_width,
         camera_height=args.camera_height,
+        use_saved_calibration=not args.no_saved_calibration,
+        show_help_overlay=not args.no_help_overlay,
     )
 
     print("Blink Mouse Control - starting...")
