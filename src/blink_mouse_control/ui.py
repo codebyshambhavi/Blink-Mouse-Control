@@ -64,7 +64,7 @@ class BlinkControlPanel:
 
         self.root = ctk.CTk()
         self.root.title("Blink Mouse Control")
-        self.root.geometry("860x560")
+        self._set_initial_geometry_centered(860, 560)
         self.root.minsize(860, 560)
         self.root.resizable(True, True)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -114,6 +114,14 @@ class BlinkControlPanel:
         self._apply_theme(self.theme_mode, persist=False)
         self.root.after(0, self._center_window)
         self._schedule_status_poll()
+
+    def _set_initial_geometry_centered(self, width: int, height: int) -> None:
+        """Set initial window size and center position before first render."""
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x_position = max(0, (screen_width - width) // 2)
+        y_position = max(0, (screen_height - height) // 2)
+        self.root.geometry(f"{width}x{height}+{x_position}+{y_position}")
 
     def _center_window(self) -> None:
         """Center the window on the current screen after it is realized."""

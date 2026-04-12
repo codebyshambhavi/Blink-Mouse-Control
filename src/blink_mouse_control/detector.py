@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+import ctypes
 from collections.abc import Callable
 from collections import deque
 from dataclasses import dataclass, field
@@ -149,6 +150,29 @@ def _configure_camera(cap: cv2.VideoCapture, config: DetectionConfig) -> None:
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.camera_width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.camera_height)
     cap.set(cv2.CAP_PROP_FPS, config.max_camera_fps)
+
+
+def _prepare_display_window(window_name: str, frame_size: tuple[int, int]) -> None:
+    """Create and position the preview window centered and above the desktop UI."""
+    frame_width, frame_height = frame_size
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, frame_width, frame_height)
+
+    try:
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+    except cv2.error:
+        pass
+
+    if os.name == "nt":
+        screen_width = int(ctypes.windll.user32.GetSystemMetrics(0))
+        screen_height = int(ctypes.windll.user32.GetSystemMetrics(1))
+    else:
+        # Fallback values for non-Windows environments.
+        screen_width, screen_height = 1920, 1080
+
+    x_position = max(0, (screen_width - frame_width) // 2)
+    y_position = max(0, (screen_height - frame_height) // 2)
+    cv2.moveWindow(window_name, x_position, y_position)
 
 
 def _read_frame(cap: cv2.VideoCapture) -> tuple[bool, Any | None]:
@@ -530,6 +554,8 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
             blink_indicator_until: float = 0.0
             current_beauty_level = control.get_beauty_filter_level()
             current_beauty_profile = _get_beauty_filter_profile(current_beauty_level)
+            window_title = "Eye Blink Mouse Control"
+            _prepare_display_window(window_title, config.frame_size)
 
             print("[INFO] Detection started. Press ESC to quit.")
 
@@ -554,6 +580,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                 results = face_mesh.detect_for_video(mp_image, timestamp_ms)
                 fps, previous_frame_timestamp = _compute_fps(previous_frame_timestamp, time.monotonic())
                 active_threshold = control.get_threshold_override() or ear_threshold
+                beauty_filter_level = control.get_beauty_filter_level()
 
                 if results.face_landmarks:
                     if control.consume_recalibration_request():
@@ -580,7 +607,6 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         if control.is_cursor_control_enabled()
                         else disabled_actions
                     )
-                    beauty_filter_level = control.get_beauty_filter_level()
                     target_beauty_profile = _get_beauty_filter_profile(beauty_filter_level)
                     transition_factor = 0.10 if beauty_filter_level != current_beauty_level else 0.20
                     current_beauty_profile = _mix_profiles(
@@ -642,7 +668,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         threshold=active_threshold,
                     )
 
-                cv2.imshow("Eye Blink Mouse Control", display_frame)
+                cv2.imshow(window_title, display_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == 27:
                     break
