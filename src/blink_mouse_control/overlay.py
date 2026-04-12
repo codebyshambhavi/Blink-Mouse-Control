@@ -14,6 +14,13 @@ HUD_ORANGE = (60, 165, 255)
 HUD_TEXT = (235, 235, 235)
 HUD_MUTED = (190, 190, 190)
 
+HUD_PADDING_X = 24
+HUD_PADDING_Y = 28
+HUD_PRIMARY_SCALE = 1.0
+HUD_SECONDARY_SCALE = 0.5
+HUD_SECONDARY_THICKNESS = 1
+HUD_PRIMARY_THICKNESS = 3
+
 
 def _blend_rect(frame: Any, x1: int, y1: int, x2: int, y2: int, color: tuple[int, int, int], alpha: float) -> None:
     """Draw a semi-transparent rectangle with fast alpha blending."""
@@ -29,6 +36,13 @@ def _blend_rect(frame: Any, x1: int, y1: int, x2: int, y2: int, color: tuple[int
     overlay = roi.copy()
     overlay[:] = color
     cv2.addWeighted(overlay, alpha, roi, 1.0 - alpha, 0.0, roi)
+
+
+def _line_metrics(text: str, scale: float, thickness: int) -> tuple[int, int, int]:
+    """Return text width, height, and baseline for a line of HUD text."""
+    width, height = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
+    baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[1]
+    return width, height, baseline
 
 
 def draw_status_overlay(
@@ -47,41 +61,56 @@ def draw_status_overlay(
     height, width = frame.shape[:2]
 
     # Top HUD bar
-    bar_height = 80
+    calibration_text = "CAL SAVED" if using_saved_calibration else "CAL TEMP"
+    status_text = "RUNNING" if running else "STOPPED"
+    cal_width, cal_height, cal_baseline = _line_metrics(
+        calibration_text,
+        HUD_SECONDARY_SCALE,
+        HUD_SECONDARY_THICKNESS,
+    )
+    status_width, status_height, status_baseline = _line_metrics(
+        status_text,
+        HUD_PRIMARY_SCALE,
+        HUD_PRIMARY_THICKNESS,
+    )
+    line_height = max(cal_height + cal_baseline, status_height + status_baseline)
+    bar_height = HUD_PADDING_Y * 2 + line_height * 2 + 8
     _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (18, 18, 18), alpha=0.52)
 
-    status_text = "RUNNING" if running else "STOPPED"
     status_color = HUD_GREEN if running else HUD_RED
-    cv2.putText(
-        frame,
-        status_text,
-        (24, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        status_color,
-        3,
-        cv2.LINE_AA,
-    )
+    top_left_x = HUD_PADDING_X
+    cal_y = HUD_PADDING_Y + cal_height
+    status_y = cal_y + line_height + 6
 
-    calibration_text = "CAL SAVED" if using_saved_calibration else "CAL TEMP"
     cv2.putText(
         frame,
         calibration_text,
-        (24, 28),
+        (top_left_x, cal_y),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,
+        HUD_SECONDARY_SCALE,
         HUD_MUTED,
-        1,
+        HUD_SECONDARY_THICKNESS,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        frame,
+        status_text,
+        (top_left_x, status_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        HUD_PRIMARY_SCALE,
+        status_color,
+        HUD_PRIMARY_THICKNESS,
         cv2.LINE_AA,
     )
 
     beauty_text = f"BEAUTY {beauty_level.upper()}"
+    beauty_width, beauty_height, beauty_baseline = _line_metrics(beauty_text, 0.48, 1)
     cv2.putText(
         frame,
         beauty_text,
-        (24, 46),
+        (width - beauty_width - HUD_PADDING_X, HUD_PADDING_Y + beauty_height),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.5,
+        0.48,
         HUD_GREEN if beauty_level != "Off" else HUD_MUTED,
         1,
         cv2.LINE_AA,
@@ -219,7 +248,7 @@ def draw_no_face_overlay(
         using_saved_calibration=using_saved_calibration,
         beauty_level=beauty_level,
         blink_strength=0.0,
-        running=True,
+        running=False,
     )
     cv2.putText(
         frame,
