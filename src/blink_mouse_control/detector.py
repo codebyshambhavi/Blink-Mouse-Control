@@ -156,7 +156,17 @@ def _prepare_display_window(window_name: str, frame_size: tuple[int, int]) -> No
     """Create and position the preview window centered and above the desktop UI."""
     frame_width, frame_height = frame_size
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_name, frame_width, frame_height)
+
+    # Prefer a borderless fullscreen experience to avoid default white title bars.
+    fullscreen_enabled = False
+    try:
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        fullscreen_enabled = True
+    except cv2.error:
+        fullscreen_enabled = False
+
+    if not fullscreen_enabled:
+        cv2.resizeWindow(window_name, frame_width, frame_height)
 
     try:
         cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
@@ -170,9 +180,10 @@ def _prepare_display_window(window_name: str, frame_size: tuple[int, int]) -> No
         # Fallback values for non-Windows environments.
         screen_width, screen_height = 1920, 1080
 
-    x_position = max(0, (screen_width - frame_width) // 2)
-    y_position = max(0, (screen_height - frame_height) // 2)
-    cv2.moveWindow(window_name, x_position, y_position)
+    if not fullscreen_enabled:
+        x_position = max(0, (screen_width - frame_width) // 2)
+        y_position = max(0, (screen_height - frame_height) // 2)
+        cv2.moveWindow(window_name, x_position, y_position)
 
 
 def _read_frame(cap: cv2.VideoCapture) -> tuple[bool, Any | None]:

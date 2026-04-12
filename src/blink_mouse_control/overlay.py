@@ -75,7 +75,7 @@ def draw_status_overlay(
     )
     line_height = max(cal_height + cal_baseline, status_height + status_baseline)
     bar_height = HUD_PADDING_Y * 2 + line_height * 2 + 8
-    _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (18, 18, 18), alpha=0.52)
+    _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (0, 0, 0), alpha=0.62)
 
     status_color = HUD_GREEN if running else HUD_RED
     top_left_x = HUD_PADDING_X
