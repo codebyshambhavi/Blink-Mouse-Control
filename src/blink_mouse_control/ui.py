@@ -232,7 +232,7 @@ class BlinkControlPanel:
 
         self.theme_label = ctk.CTkLabel(
             settings_frame,
-            text="🔥 DARK MODE 🔥",
+            text="Dark Mode",
             font=ctk.CTkFont(size=12, weight="bold"),
         )
         self.theme_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 4))
