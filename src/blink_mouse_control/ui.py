@@ -87,6 +87,7 @@ class BlinkControlPanel:
         self.cursor_switch: ctk.CTkSwitch | None = None
         self.beauty_filter_dropdown: ctk.CTkComboBox | None = None
         self.theme_switch: ctk.CTkSwitch | None = None
+        self.theme_label: ctk.CTkLabel | None = None
         self.container: ctk.CTkFrame | None = None
         self.top_bar: ctk.CTkFrame | None = None
         self.status_card: ctk.CTkFrame | None = None
@@ -216,8 +217,25 @@ class BlinkControlPanel:
             font=ctk.CTkFont(size=15, weight="bold"),
         ).grid(row=0, column=0, sticky=tk.W, padx=12, pady=(12, 8))
 
+        self.theme_label = ctk.CTkLabel(
+            settings_frame,
+            text="Dark Mode",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        )
+        self.theme_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 4))
+
+        self.theme_switch = ctk.CTkSwitch(
+            settings_frame,
+            text="Dark Mode",
+            variable=self.dark_mode_var,
+            onvalue=True,
+            offvalue=False,
+            command=self._on_theme_toggle,
+        )
+        self.theme_switch.grid(row=2, column=0, sticky=tk.W, padx=12, pady=(0, 12))
+
         ctk.CTkLabel(settings_frame, text="Sensitivity preset", font=ctk.CTkFont(size=12)).grid(
-            row=1,
+            row=3,
             column=0,
             sticky=tk.W,
             padx=12,
@@ -232,11 +250,11 @@ class BlinkControlPanel:
             corner_radius=8,
             height=32,
         )
-        preset_dropdown.grid(row=2, column=0, sticky=tk.EW, padx=12, pady=(0, 8))
+        preset_dropdown.grid(row=4, column=0, sticky=tk.EW, padx=12, pady=(0, 8))
         self.preset_dropdown = preset_dropdown
 
         ctk.CTkLabel(settings_frame, text="Manual sensitivity (EAR threshold)", font=ctk.CTkFont(size=12)).grid(
-            row=3,
+            row=5,
             column=0,
             sticky=tk.W,
             padx=12,
@@ -252,7 +270,7 @@ class BlinkControlPanel:
             number_of_steps=230,
             height=16,
         )
-        sensitivity_scale.grid(row=4, column=0, sticky=tk.EW, padx=12, pady=(0, 6))
+        sensitivity_scale.grid(row=6, column=0, sticky=tk.EW, padx=12, pady=(0, 6))
         self.sensitivity_slider = sensitivity_scale
 
         sensitivity_value = ctk.CTkLabel(
@@ -260,7 +278,7 @@ class BlinkControlPanel:
             text=self.sensitivity_display_var.get(),
             font=ctk.CTkFont(size=12),
         )
-        sensitivity_value.grid(row=5, column=0, sticky=tk.E, padx=12, pady=(0, 8))
+        sensitivity_value.grid(row=7, column=0, sticky=tk.E, padx=12, pady=(0, 8))
         self.sensitivity_value_label = sensitivity_value
 
         cursor_toggle = ctk.CTkSwitch(
@@ -271,11 +289,11 @@ class BlinkControlPanel:
             offvalue=False,
             command=self._on_cursor_toggle,
         )
-        cursor_toggle.grid(row=6, column=0, sticky=tk.W, padx=12, pady=(8, 14))
+        cursor_toggle.grid(row=8, column=0, sticky=tk.W, padx=12, pady=(8, 14))
         self.cursor_switch = cursor_toggle
 
         ctk.CTkLabel(settings_frame, text="Beauty filter level", font=ctk.CTkFont(size=12)).grid(
-            row=7,
+            row=9,
             column=0,
             sticky=tk.W,
             padx=12,
@@ -290,18 +308,8 @@ class BlinkControlPanel:
             corner_radius=8,
             height=32,
         )
-        beauty_dropdown.grid(row=8, column=0, sticky=tk.EW, padx=12, pady=(0, 14))
+        beauty_dropdown.grid(row=10, column=0, sticky=tk.EW, padx=12, pady=(0, 14))
         self.beauty_filter_dropdown = beauty_dropdown
-
-        self.theme_switch = ctk.CTkSwitch(
-            settings_frame,
-            text="Dark Mode",
-            variable=self.dark_mode_var,
-            onvalue=True,
-            offvalue=False,
-            command=self._on_theme_toggle,
-        )
-        self.theme_switch.grid(row=9, column=0, sticky=tk.W, padx=12, pady=(0, 14))
 
         stats_frame = ctk.CTkFrame(content_frame, corner_radius=8)
         stats_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(5, 8), pady=8)
@@ -428,6 +436,7 @@ class BlinkControlPanel:
                 card.configure(fg_color=theme["card"])
 
         for label in (
+            self.theme_label,
             self.status_value_label,
             self.metrics_value_label,
             self.stats_ear_value_label,

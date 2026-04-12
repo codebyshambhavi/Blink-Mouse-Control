@@ -13,3 +13,4 @@ python src\main.py --ui
 
 REM Keep window open to see messages
 pause
+S
