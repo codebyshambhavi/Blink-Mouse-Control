@@ -33,7 +33,7 @@ class BlinkControlPanel:
 
         self.root = ctk.CTk()
         self.root.title("Blink Mouse Control")
-        self.root.geometry("460x560")
+        self.root.geometry("860x560")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -55,6 +55,8 @@ class BlinkControlPanel:
         self.status_value_label: ctk.CTkLabel | None = None
         self.fps_value_label: ctk.CTkLabel | None = None
         self.ear_value_label: ctk.CTkLabel | None = None
+        self.stats_fps_value_label: ctk.CTkLabel | None = None
+        self.stats_ear_value_label: ctk.CTkLabel | None = None
         self.blink_count_value_label: ctk.CTkLabel | None = None
         self.threshold_value_label: ctk.CTkLabel | None = None
         self.sensitivity_value_label: ctk.CTkLabel | None = None
@@ -67,38 +69,72 @@ class BlinkControlPanel:
         container = ctk.CTkFrame(self.root, corner_radius=12)
         container.pack(fill=tk.BOTH, expand=True, padx=14, pady=14)
         container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
 
-        status_frame = ctk.CTkFrame(container, corner_radius=10)
-        status_frame.grid(row=0, column=0, sticky=tk.EW, padx=10, pady=(10, 8))
-        status_frame.columnconfigure(1, weight=1)
+        top_bar = ctk.CTkFrame(container, corner_radius=10)
+        top_bar.grid(row=0, column=0, sticky=tk.EW, padx=10, pady=(10, 8))
+        top_bar.columnconfigure((0, 1, 2), weight=1)
 
-        ctk.CTkLabel(
-            status_frame,
-            text="Status",
-            font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 2))
-
-        ctk.CTkLabel(status_frame, text="System state", font=ctk.CTkFont(size=12)).grid(
-            row=1,
+        status_card = ctk.CTkFrame(top_bar, corner_radius=8)
+        status_card.grid(row=0, column=0, padx=(8, 4), pady=8, sticky=tk.EW)
+        ctk.CTkLabel(status_card, text="System State", font=ctk.CTkFont(size=12)).grid(
+            row=0,
             column=0,
             sticky=tk.W,
-            padx=(12, 10),
-            pady=(12, 10),
+            padx=12,
+            pady=(8, 2),
         )
         self.status_value_label = ctk.CTkLabel(
-            status_frame,
+            status_card,
             text=self.status_var.get(),
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"),
         )
-        self.status_value_label.grid(
-            row=1,
-            column=1,
-            sticky=tk.W,
-            pady=(12, 10),
-        )
+        self.status_value_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 10))
 
-        controls_frame = ctk.CTkFrame(container, corner_radius=10)
-        controls_frame.grid(row=1, column=0, sticky=tk.EW, padx=10, pady=(0, 8))
+        fps_card = ctk.CTkFrame(top_bar, corner_radius=8)
+        fps_card.grid(row=0, column=1, padx=4, pady=8, sticky=tk.EW)
+        ctk.CTkLabel(fps_card, text="FPS", font=ctk.CTkFont(size=12)).grid(
+            row=0,
+            column=0,
+            sticky=tk.W,
+            padx=12,
+            pady=(8, 2),
+        )
+        self.fps_value_label = ctk.CTkLabel(
+            fps_card,
+            text=self.fps_var.get(),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        self.fps_value_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 10))
+
+        ear_card = ctk.CTkFrame(top_bar, corner_radius=8)
+        ear_card.grid(row=0, column=2, padx=(4, 8), pady=8, sticky=tk.EW)
+        ctk.CTkLabel(ear_card, text="Current EAR", font=ctk.CTkFont(size=12)).grid(
+            row=0,
+            column=0,
+            sticky=tk.W,
+            padx=12,
+            pady=(8, 2),
+        )
+        self.ear_value_label = ctk.CTkLabel(
+            ear_card,
+            text=self.ear_var.get(),
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        self.ear_value_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 10))
+
+        content_frame = ctk.CTkFrame(container, corner_radius=10)
+        content_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=10, pady=(0, 10))
+        content_frame.columnconfigure(0, weight=3)
+        content_frame.columnconfigure(1, weight=2)
+        content_frame.rowconfigure(0, weight=1)
+
+        left_panel = ctk.CTkFrame(content_frame, corner_radius=8)
+        left_panel.grid(row=0, column=0, sticky=tk.NSEW, padx=(8, 5), pady=8)
+        left_panel.columnconfigure(0, weight=1)
+
+        controls_frame = ctk.CTkFrame(left_panel, corner_radius=8)
+        controls_frame.grid(row=0, column=0, sticky=tk.EW, padx=10, pady=(10, 8))
         controls_frame.columnconfigure(0, weight=1)
         controls_frame.columnconfigure(1, weight=1)
 
@@ -106,16 +142,17 @@ class BlinkControlPanel:
             controls_frame,
             text="Controls",
             font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 2))
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 6))
 
         start_button = ctk.CTkButton(
             controls_frame,
             textvariable=self.start_button_var,
             command=self._toggle_start_stop,
             corner_radius=10,
-            height=36,
+            height=44,
+            font=ctk.CTkFont(size=14, weight="bold"),
         )
-        start_button.grid(row=1, column=0, padx=(12, 6), pady=(8, 12), sticky=tk.EW)
+        start_button.grid(row=1, column=0, columnspan=2, padx=12, pady=(0, 8), sticky=tk.EW)
         self.start_button = start_button
 
         recalibrate_button = ctk.CTkButton(
@@ -123,27 +160,27 @@ class BlinkControlPanel:
             text="Recalibrate",
             command=self._request_recalibration,
             corner_radius=10,
-            height=36,
+            height=34,
         )
-        recalibrate_button.grid(row=1, column=1, padx=(6, 12), pady=(8, 12), sticky=tk.EW)
+        recalibrate_button.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 10), sticky=tk.EW)
         self.recalibrate_button = recalibrate_button
 
-        settings_frame = ctk.CTkFrame(container, corner_radius=10)
-        settings_frame.grid(row=2, column=0, sticky=tk.EW, padx=10, pady=(0, 8))
+        settings_frame = ctk.CTkFrame(left_panel, corner_radius=8)
+        settings_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=10, pady=(0, 10))
         settings_frame.columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             settings_frame,
             text="Settings",
             font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=0, sticky=tk.W, padx=12, pady=(10, 2))
+        ).grid(row=0, column=0, sticky=tk.W, padx=12, pady=(10, 6))
 
         ctk.CTkLabel(settings_frame, text="Sensitivity preset", font=ctk.CTkFont(size=12)).grid(
             row=1,
             column=0,
             sticky=tk.W,
             padx=12,
-            pady=(12, 4),
+            pady=(2, 4),
         )
 
         preset_dropdown = ctk.CTkComboBox(
@@ -193,63 +230,74 @@ class BlinkControlPanel:
             offvalue=False,
             command=self._on_cursor_toggle,
         )
-        cursor_toggle.grid(row=6, column=0, sticky=tk.W, padx=12, pady=(12, 10))
+        cursor_toggle.grid(row=6, column=0, sticky=tk.W, padx=12, pady=(12, 12))
         self.cursor_switch = cursor_toggle
 
-        stats_frame = ctk.CTkFrame(container, corner_radius=10)
-        stats_frame.grid(row=3, column=0, sticky=tk.EW, padx=10, pady=(0, 10))
+        stats_frame = ctk.CTkFrame(content_frame, corner_radius=8)
+        stats_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(5, 8), pady=8)
         stats_frame.columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
             stats_frame,
             text="Live Statistics",
             font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(10, 6))
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(12, 10))
 
         ctk.CTkLabel(stats_frame, text="FPS", font=ctk.CTkFont(size=12)).grid(
             row=1,
             column=0,
             sticky=tk.W,
             padx=12,
+            pady=(0, 6),
         )
-        self.fps_value_label = ctk.CTkLabel(stats_frame, text=self.fps_var.get(), font=ctk.CTkFont(size=12))
-        self.fps_value_label.grid(row=1, column=1, sticky=tk.E, padx=12)
+        self.stats_fps_value_label = ctk.CTkLabel(
+            stats_frame,
+            text=self.fps_var.get(),
+            font=ctk.CTkFont(size=12),
+        )
+        self.stats_fps_value_label.grid(row=1, column=1, sticky=tk.E, padx=12, pady=(0, 6))
 
         ctk.CTkLabel(stats_frame, text="Current EAR", font=ctk.CTkFont(size=12)).grid(
             row=2,
             column=0,
             sticky=tk.W,
             padx=12,
+            pady=(0, 6),
         )
-        self.ear_value_label = ctk.CTkLabel(stats_frame, text=self.ear_var.get(), font=ctk.CTkFont(size=12))
-        self.ear_value_label.grid(row=2, column=1, sticky=tk.E, padx=12)
+        self.stats_ear_value_label = ctk.CTkLabel(
+            stats_frame,
+            text=self.ear_var.get(),
+            font=ctk.CTkFont(size=12),
+        )
+        self.stats_ear_value_label.grid(row=2, column=1, sticky=tk.E, padx=12, pady=(0, 6))
 
         ctk.CTkLabel(stats_frame, text="Blink count", font=ctk.CTkFont(size=12)).grid(
             row=3,
             column=0,
             sticky=tk.W,
             padx=12,
+            pady=(0, 6),
         )
         self.blink_count_value_label = ctk.CTkLabel(
             stats_frame,
             text=self.blink_count_var.get(),
             font=ctk.CTkFont(size=12),
         )
-        self.blink_count_value_label.grid(row=3, column=1, sticky=tk.E, padx=12)
+        self.blink_count_value_label.grid(row=3, column=1, sticky=tk.E, padx=12, pady=(0, 6))
 
         ctk.CTkLabel(stats_frame, text="Current threshold", font=ctk.CTkFont(size=12)).grid(
             row=4,
             column=0,
             sticky=tk.W,
             padx=12,
-            pady=(0, 10),
+            pady=(0, 12),
         )
         self.threshold_value_label = ctk.CTkLabel(
             stats_frame,
             text=self.current_threshold_var.get(),
             font=ctk.CTkFont(size=12),
         )
-        self.threshold_value_label.grid(row=4, column=1, sticky=tk.E, padx=12, pady=(0, 10))
+        self.threshold_value_label.grid(row=4, column=1, sticky=tk.E, padx=12, pady=(0, 12))
 
         # Initialize slider from the default preset for predictable startup behavior.
         self._apply_preset("Medium")
@@ -408,8 +456,12 @@ class BlinkControlPanel:
             self.status_value_label.configure(text=self.status_var.get())
         if self.fps_value_label is not None:
             self.fps_value_label.configure(text=self.fps_var.get())
+        if self.stats_fps_value_label is not None:
+            self.stats_fps_value_label.configure(text=self.fps_var.get())
         if self.ear_value_label is not None:
             self.ear_value_label.configure(text=self.ear_var.get())
+        if self.stats_ear_value_label is not None:
+            self.stats_ear_value_label.configure(text=self.ear_var.get())
         if self.blink_count_value_label is not None:
             self.blink_count_value_label.configure(text=self.blink_count_var.get())
         if self.threshold_value_label is not None:
