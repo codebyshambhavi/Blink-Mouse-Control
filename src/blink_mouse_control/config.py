@@ -26,6 +26,7 @@ class DetectionConfig:
     use_saved_calibration: bool = True
     show_help_overlay: bool = True
     save_calibration_after_run: bool = True
+    beauty_filter_enabled: bool = True
 
 
 LEFT_EYE_LANDMARKS: tuple[int, int, int, int, int, int] = (33, 160, 158, 133, 153, 144)

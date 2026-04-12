@@ -41,6 +41,7 @@ class DetectionControl:
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _threshold_override: float | None = None
     _cursor_control_enabled: bool = True
+    _beauty_filter_enabled: bool = True
     _blink_count: int = 0
     _current_fps: float = 0.0
     _current_ear: float | None = None
@@ -92,6 +93,14 @@ class DetectionControl:
     def is_cursor_control_enabled(self) -> bool:
         with self._lock:
             return self._cursor_control_enabled
+
+    def set_beauty_filter_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self._beauty_filter_enabled = enabled
+
+    def is_beauty_filter_enabled(self) -> bool:
+        with self._lock:
+            return self._beauty_filter_enabled
 
     def increment_blink_count(self) -> None:
         with self._lock:
@@ -147,6 +156,40 @@ def _smooth_ear(ear_history: deque[float], current_ear: float) -> float:
     """Append current EAR and return the moving average."""
     ear_history.append(current_ear)
     return sum(ear_history) / len(ear_history)
+
+
+def _apply_beauty_filter_to_face(frame: Any, landmarks: Any, enabled: bool) -> None:
+    """Apply subtle smoothing and tone lift to the detected face ROI only."""
+    if not enabled:
+        return
+
+    height, width = frame.shape[:2]
+    xs: list[int] = []
+    ys: list[int] = []
+    for lm in landmarks:
+        xs.append(int(lm.x * width))
+        ys.append(int(lm.y * height))
+
+    if not xs or not ys:
+        return
+
+    min_x = max(0, min(xs) - 8)
+    min_y = max(0, min(ys) - 10)
+    max_x = min(width - 1, max(xs) + 8)
+    max_y = min(height - 1, max(ys) + 10)
+
+    if max_x <= min_x or max_y <= min_y:
+        return
+
+    roi = frame[min_y:max_y, min_x:max_x]
+    roi_h, roi_w = roi.shape[:2]
+    if roi_h < 32 or roi_w < 32:
+        return
+
+    smoothed = cv2.bilateralFilter(roi, d=5, sigmaColor=28, sigmaSpace=28)
+    enhanced = cv2.convertScaleAbs(smoothed, alpha=1.05, beta=4)
+    softened = cv2.addWeighted(roi, 0.52, enhanced, 0.48, 0.0)
+    frame[min_y:max_y, min_x:max_x] = softened
 
 
 def _complete_blink_if_needed(
@@ -267,6 +310,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
     config = config or DetectionConfig()
     control = control or DetectionControl()
     control.mark_started()
+    control.set_beauty_filter_enabled(config.beauty_filter_enabled)
 
     cap = _open_camera(config.camera_index)
     if not cap.isOpened():
@@ -357,6 +401,9 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         if control.is_cursor_control_enabled()
                         else disabled_actions
                     )
+                    active_beauty_filter = control.is_beauty_filter_enabled()
+
+                    _apply_beauty_filter_to_face(display_frame, landmarks, active_beauty_filter)
 
                     blink_ended = _update_blink_state(
                         smooth_ear,
@@ -415,6 +462,10 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                     break
                 if key in (ord("r"), ord("R")):
                     control.request_recalibration()
+                if key in (ord("b"), ord("B")):
+                    new_beauty_state = not control.is_beauty_filter_enabled()
+                    control.set_beauty_filter_enabled(new_beauty_state)
+                    print(f"[INFO] Beauty filter {'enabled' if new_beauty_state else 'disabled'}.")
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user.")
     except cv2.error as exc:

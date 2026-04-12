@@ -56,6 +56,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Launch the CustomTkinter desktop control panel.",
     )
+    parser.add_argument(
+        "--no-beauty-filter",
+        action="store_true",
+        help="Disable the subtle face-only beauty filter.",
+    )
     return parser
 
 
@@ -70,6 +75,7 @@ def main() -> None:
         camera_height=args.camera_height,
         use_saved_calibration=not args.no_saved_calibration,
         show_help_overlay=not args.no_help_overlay,
+        beauty_filter_enabled=not args.no_beauty_filter,
     )
 
     print("Blink Mouse Control - starting...")

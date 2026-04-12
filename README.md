@@ -11,6 +11,7 @@ This project is designed for accessibility use cases, technical demonstrations, 
 - Eye Aspect Ratio (EAR) detection for blink recognition
 - Persistent calibration to avoid repeated setup on every run
 - On-screen overlay showing EAR, FPS, and threshold values
+- Subtle face-region beauty filter (skin smoothing + gentle tone enhancement)
 - Optimized frame processing for smoother real-time performance
 - Command-line controls for camera and calibration settings
 - Optional Tkinter desktop control panel with start/stop and live controls
@@ -112,8 +113,10 @@ When the app starts, calibration runs for a few seconds. Keep your face centered
 Useful controls during runtime:
 
 - Press `ESC` or `Q` to quit
+- Press `B` to toggle the beauty filter on/off
 - Use `--no-saved-calibration` to force a fresh calibration on startup
 - Use `--no-help-overlay` to hide the status and shortcut overlay
+- Use `--no-beauty-filter` to start with beauty filtering disabled
 
 Desktop control panel includes:
 
@@ -121,6 +124,7 @@ Desktop control panel includes:
 - Sensitivity preset dropdown (Low, Medium, High)
 - Sensitivity slider for blink threshold override
 - Cursor control toggle (enable/disable click actions)
+- Beauty filter toggle (enable/disable face-only enhancement)
 - Recalibration button while running
 - Current status indicator (Running / Stopped)
 - Live statistics panel (FPS, EAR, blink count, threshold)

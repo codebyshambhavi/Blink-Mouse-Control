@@ -46,6 +46,7 @@ class BlinkControlPanel:
         self.sensitivity_display_var = tk.StringVar(value=f"{self.sensitivity_var.get():.3f}")
         self.preset_var = tk.StringVar(value="Medium")
         self.cursor_enabled_var = tk.BooleanVar(value=True)
+        self.beauty_filter_enabled_var = tk.BooleanVar(value=self.config.beauty_filter_enabled)
         self.fps_var = tk.StringVar(value="0.0")
         self.ear_var = tk.StringVar(value="-")
         self.blink_count_var = tk.StringVar(value="0")
@@ -55,6 +56,7 @@ class BlinkControlPanel:
         self.preset_dropdown: ctk.CTkComboBox | None = None
         self.sensitivity_slider: ctk.CTkSlider | None = None
         self.cursor_switch: ctk.CTkSwitch | None = None
+        self.beauty_filter_switch: ctk.CTkSwitch | None = None
         self.status_value_label: ctk.CTkLabel | None = None
         self.metrics_value_label: ctk.CTkLabel | None = None
         self.stats_ear_value_label: ctk.CTkLabel | None = None
@@ -232,6 +234,17 @@ class BlinkControlPanel:
         cursor_toggle.grid(row=6, column=0, sticky=tk.W, padx=12, pady=(8, 14))
         self.cursor_switch = cursor_toggle
 
+        beauty_toggle = ctk.CTkSwitch(
+            settings_frame,
+            text="Enable beauty filter",
+            variable=self.beauty_filter_enabled_var,
+            onvalue=True,
+            offvalue=False,
+            command=self._on_beauty_filter_toggle,
+        )
+        beauty_toggle.grid(row=7, column=0, sticky=tk.W, padx=12, pady=(0, 14))
+        self.beauty_filter_switch = beauty_toggle
+
         stats_frame = ctk.CTkFrame(content_frame, corner_radius=8)
         stats_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(5, 8), pady=8)
         stats_frame.columnconfigure(1, weight=1)
@@ -371,6 +384,7 @@ class BlinkControlPanel:
         self.control = DetectionControl()
         self.control.set_threshold_override(self.sensitivity_var.get())
         self.control.set_cursor_control_enabled(self.cursor_enabled_var.get())
+        self.control.set_beauty_filter_enabled(self.beauty_filter_enabled_var.get())
 
         self.worker_thread = threading.Thread(
             target=run_detection,
@@ -444,6 +458,11 @@ class BlinkControlPanel:
         if self.control is not None:
             self.control.set_cursor_control_enabled(self.cursor_enabled_var.get())
 
+    def _on_beauty_filter_toggle(self) -> None:
+        """Enable or disable beauty filtering in the detector preview."""
+        if self.control is not None:
+            self.control.set_beauty_filter_enabled(self.beauty_filter_enabled_var.get())
+
     def _request_recalibration(self) -> None:
         """Ask the running detector to perform recalibration on the next iteration."""
         if self.control is not None:
@@ -477,6 +496,8 @@ class BlinkControlPanel:
             self.sensitivity_slider.configure(state=state)
         if self.cursor_switch is not None:
             self.cursor_switch.configure(state=state)
+        if self.beauty_filter_switch is not None:
+            self.beauty_filter_switch.configure(state=state)
 
     def _refresh_live_stats(self) -> None:
         """Pull a thread-safe live stats snapshot from the detector and update labels."""
