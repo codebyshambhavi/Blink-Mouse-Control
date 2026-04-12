@@ -129,6 +129,7 @@ Desktop control panel includes:
 - Recalibration button while running
 - Current status indicator (Running / Stopped)
 - Live statistics panel (FPS, EAR, blink count, threshold)
+- Dark Mode toggle with saved preference on next launch
 - Sectioned layout for Controls, Settings, and Status with clean spacing
 
 Suggested demo workflow:

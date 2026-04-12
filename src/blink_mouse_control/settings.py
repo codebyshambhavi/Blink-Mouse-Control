@@ -7,6 +7,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
+THEME_MODES = ("Dark", "Light")
+THEME_SETTINGS_FILENAME = "theme.json"
+DEFAULT_THEME_MODE = "Dark"
+
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     """Persisted values that make repeated runs faster and more convenient."""
@@ -22,6 +27,13 @@ def get_settings_path() -> Path:
     settings_dir = Path.home() / ".blink_mouse_control"
     settings_dir.mkdir(parents=True, exist_ok=True)
     return settings_dir / "settings.json"
+
+
+def get_theme_settings_path() -> Path:
+    """Return the path used to store the UI theme preference."""
+    settings_dir = Path.home() / ".blink_mouse_control"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    return settings_dir / THEME_SETTINGS_FILENAME
 
 
 def load_runtime_settings() -> RuntimeSettings | None:
@@ -42,8 +54,30 @@ def load_runtime_settings() -> RuntimeSettings | None:
         return None
 
 
+def load_theme_mode() -> str:
+    """Load the persisted UI theme mode or fall back to the dark theme."""
+    settings_path = get_theme_settings_path()
+    if not settings_path.exists():
+        return DEFAULT_THEME_MODE
+
+    try:
+        raw_data = json.loads(settings_path.read_text(encoding="utf-8"))
+        mode = str(raw_data.get("theme_mode", DEFAULT_THEME_MODE))
+        return mode if mode in THEME_MODES else DEFAULT_THEME_MODE
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return DEFAULT_THEME_MODE
+
+
 def save_runtime_settings(settings: RuntimeSettings) -> None:
     """Persist runtime settings for faster future launches."""
     settings_path = get_settings_path()
     payload = asdict(settings)
+    settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def save_theme_mode(mode: str) -> None:
+    """Persist the current UI theme preference."""
+    normalized_mode = mode if mode in THEME_MODES else DEFAULT_THEME_MODE
+    settings_path = get_theme_settings_path()
+    payload = {"theme_mode": normalized_mode}
     settings_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

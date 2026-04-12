@@ -12,12 +12,39 @@ from matplotlib.figure import Figure
 
 from .config import BEAUTY_FILTER_LEVELS, DetectionConfig
 from .detector import DetectionControl, run_detection
+from .settings import load_theme_mode, save_theme_mode
 
 
 PRESET_THRESHOLDS = {
     "Low": 0.18,
     "Medium": 0.22,
     "High": 0.26,
+}
+
+
+THEME_PALETTES = {
+    "Dark": {
+        "background": "#141414",
+        "surface": "#1c1c1c",
+        "card": "#242424",
+        "text": "#f5f5f5",
+        "muted": "#c7c7c7",
+        "border": "#3a3a3a",
+        "accent": "#2563eb",
+        "accent_hover": "#1d4ed8",
+        "slider_fg": "#2a2a2a",
+    },
+    "Light": {
+        "background": "#f3f4f6",
+        "surface": "#e5e7eb",
+        "card": "#ffffff",
+        "text": "#111827",
+        "muted": "#4b5563",
+        "border": "#d1d5db",
+        "accent": "#2563eb",
+        "accent_hover": "#1d4ed8",
+        "slider_fg": "#e5e7eb",
+    },
 }
 
 
@@ -30,8 +57,9 @@ class BlinkControlPanel:
         self.worker_thread: threading.Thread | None = None
         self._is_closing = False
         self._stop_in_progress = False
+        self.theme_mode = load_theme_mode()
 
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode(self.theme_mode)
         ctk.set_default_color_theme("blue")
 
         self.root = ctk.CTk()
@@ -47,6 +75,7 @@ class BlinkControlPanel:
         self.preset_var = tk.StringVar(value="Medium")
         self.cursor_enabled_var = tk.BooleanVar(value=True)
         self.beauty_filter_level_var = tk.StringVar(value=self.config.beauty_filter_level)
+        self.dark_mode_var = tk.BooleanVar(value=self.theme_mode == "Dark")
         self.fps_var = tk.StringVar(value="0.0")
         self.ear_var = tk.StringVar(value="-")
         self.blink_count_var = tk.StringVar(value="0")
@@ -57,6 +86,16 @@ class BlinkControlPanel:
         self.sensitivity_slider: ctk.CTkSlider | None = None
         self.cursor_switch: ctk.CTkSwitch | None = None
         self.beauty_filter_dropdown: ctk.CTkComboBox | None = None
+        self.theme_switch: ctk.CTkSwitch | None = None
+        self.container: ctk.CTkFrame | None = None
+        self.top_bar: ctk.CTkFrame | None = None
+        self.status_card: ctk.CTkFrame | None = None
+        self.metrics_card: ctk.CTkFrame | None = None
+        self.content_frame: ctk.CTkFrame | None = None
+        self.left_panel: ctk.CTkFrame | None = None
+        self.controls_frame: ctk.CTkFrame | None = None
+        self.settings_frame: ctk.CTkFrame | None = None
+        self.stats_frame: ctk.CTkFrame | None = None
         self.status_value_label: ctk.CTkLabel | None = None
         self.metrics_value_label: ctk.CTkLabel | None = None
         self.stats_ear_value_label: ctk.CTkLabel | None = None
@@ -70,6 +109,7 @@ class BlinkControlPanel:
         self.ear_canvas: FigureCanvasTkAgg | None = None
 
         self._build_layout()
+        self._apply_theme(self.theme_mode, persist=False)
         self._schedule_status_poll()
 
     def _build_layout(self) -> None:
@@ -253,6 +293,16 @@ class BlinkControlPanel:
         beauty_dropdown.grid(row=8, column=0, sticky=tk.EW, padx=12, pady=(0, 14))
         self.beauty_filter_dropdown = beauty_dropdown
 
+        self.theme_switch = ctk.CTkSwitch(
+            settings_frame,
+            text="Dark Mode",
+            variable=self.dark_mode_var,
+            onvalue=True,
+            offvalue=False,
+            command=self._on_theme_toggle,
+        )
+        self.theme_switch.grid(row=9, column=0, sticky=tk.W, padx=12, pady=(0, 14))
+
         stats_frame = ctk.CTkFrame(content_frame, corner_radius=8)
         stats_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(5, 8), pady=8)
         stats_frame.columnconfigure(1, weight=1)
@@ -317,6 +367,16 @@ class BlinkControlPanel:
         )
         self._init_ear_graph(stats_frame)
 
+        self.container = container
+        self.top_bar = top_bar
+        self.status_card = status_card
+        self.metrics_card = metrics_card
+        self.content_frame = content_frame
+        self.left_panel = left_panel
+        self.controls_frame = controls_frame
+        self.settings_frame = settings_frame
+        self.stats_frame = stats_frame
+
         # Initialize slider from the default preset for predictable startup behavior.
         self._apply_preset("Medium")
 
@@ -348,6 +408,105 @@ class BlinkControlPanel:
         self.ear_line = line
         self.ear_canvas = canvas
         self._update_ear_graph(self.sensitivity_var.get())
+
+    def _apply_theme(self, mode: str, *, persist: bool = True) -> None:
+        """Apply the selected UI theme to all visible widgets."""
+        normalized_mode = mode if mode in THEME_PALETTES else "Dark"
+        theme = THEME_PALETTES[normalized_mode]
+
+        self.theme_mode = normalized_mode
+        self.dark_mode_var.set(normalized_mode == "Dark")
+        ctk.set_appearance_mode(normalized_mode)
+        self.root.configure(fg_color=theme["background"])
+
+        for frame in (self.container, self.top_bar, self.content_frame):
+            if frame is not None:
+                frame.configure(fg_color=theme["surface"])
+
+        for card in (self.status_card, self.metrics_card, self.left_panel, self.controls_frame, self.settings_frame, self.stats_frame):
+            if card is not None:
+                card.configure(fg_color=theme["card"])
+
+        for label in (
+            self.status_value_label,
+            self.metrics_value_label,
+            self.stats_ear_value_label,
+            self.blink_count_value_label,
+            self.threshold_value_label,
+            self.sensitivity_value_label,
+        ):
+            if label is not None:
+                label.configure(text_color=theme["text"])
+
+        if self.metrics_value_label is not None:
+            self.metrics_value_label.configure(text_color=theme["accent"])
+
+        if self.blink_count_value_label is not None:
+            self.blink_count_value_label.configure(text_color=theme["accent"])
+
+        if self.threshold_value_label is not None:
+            self.threshold_value_label.configure(text_color=theme["accent"])
+
+        if self.start_button is not None:
+            self.start_button.configure(
+                fg_color=theme["accent"],
+                hover_color=theme["accent_hover"],
+                text_color="#ffffff",
+            )
+
+        if self.recalibrate_button is not None:
+            self.recalibrate_button.configure(
+                fg_color="transparent",
+                border_color=theme["border"],
+                text_color=theme["text"],
+                hover_color=theme["surface"],
+            )
+
+        for combo_box in (self.preset_dropdown, self.beauty_filter_dropdown):
+            if combo_box is not None:
+                combo_box.configure(
+                    fg_color=theme["card"],
+                    border_color=theme["border"],
+                    button_color=theme["accent"],
+                    button_hover_color=theme["accent_hover"],
+                    text_color=theme["text"],
+                )
+
+        if self.sensitivity_slider is not None:
+            self.sensitivity_slider.configure(
+                fg_color=theme["slider_fg"],
+                progress_color=theme["accent"],
+                button_color=theme["accent"],
+                button_hover_color=theme["accent_hover"],
+            )
+
+        for switch in (self.cursor_switch, self.theme_switch):
+            if switch is not None:
+                switch.configure(
+                    text_color=theme["text"],
+                    fg_color=theme["card"],
+                    progress_color=theme["accent"],
+                    button_color=theme["accent"],
+                    button_hover_color=theme["accent_hover"],
+                )
+
+        if self.ear_figure is not None and self.ear_axes is not None:
+            self.ear_figure.patch.set_facecolor(theme["card"])
+            self.ear_axes.set_facecolor(theme["surface"])
+            self.ear_axes.tick_params(axis="y", colors=theme["muted"], labelsize=8, length=0)
+            self.ear_axes.spines["left"].set_color(theme["border"])
+            if self.ear_canvas is not None:
+                self.ear_canvas.get_tk_widget().configure(bg=theme["card"])
+                self.ear_canvas.draw_idle()
+
+        self._set_status(self.status_var.get())
+
+        if persist:
+            save_theme_mode(normalized_mode)
+
+    def _on_theme_toggle(self) -> None:
+        """Switch the UI between dark and light themes."""
+        self._apply_theme("Dark" if self.dark_mode_var.get() else "Light")
 
     def _update_ear_graph(self, ear_value: float | None) -> None:
         """Append a new EAR sample and redraw the graph efficiently."""
