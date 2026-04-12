@@ -383,7 +383,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         fps=fps,
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
-                        blink_detected=now < blink_indicator_until,
+                        blink_strength=max(0.0, min((blink_indicator_until - now) / 0.30, 1.0)),
                         running=True,
                     )
                     draw_face_guides(
@@ -393,7 +393,13 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         right_eye_landmarks=RIGHT_EYE_LANDMARKS,
                     )
                 else:
-                    draw_no_face_overlay(display_frame)
+                    draw_no_face_overlay(
+                        display_frame,
+                        fps=fps,
+                        ear_threshold=active_threshold,
+                        help_enabled=config.show_help_overlay,
+                        using_saved_calibration=using_saved_calibration,
+                    )
                     control.update_live_stats(
                         fps=fps,
                         ear=None,

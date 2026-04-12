@@ -9,7 +9,8 @@ import cv2
 
 HUD_GREEN = (80, 220, 120)
 HUD_RED = (80, 80, 220)
-HUD_BLUE = (235, 140, 60)
+HUD_BLUE = (235, 150, 70)
+HUD_ORANGE = (60, 165, 255)
 HUD_TEXT = (235, 235, 235)
 HUD_MUTED = (190, 190, 190)
 
@@ -38,106 +39,119 @@ def draw_status_overlay(
     fps: float,
     help_enabled: bool,
     using_saved_calibration: bool,
-    blink_detected: bool = False,
+    blink_strength: float = 0.0,
     running: bool = True,
 ) -> None:
     """Draw a minimal HUD with status, fps, ear, and lightweight feedback."""
     height, width = frame.shape[:2]
 
     # Top HUD bar
-    bar_height = 58
-    _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (20, 20, 20), alpha=0.45)
+    bar_height = 72
+    _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (18, 18, 18), alpha=0.52)
 
-    status_text = "RUNNING" if running else "INACTIVE"
+    status_text = "RUNNING" if running else "STOPPED"
     status_color = HUD_GREEN if running else HUD_RED
     cv2.putText(
         frame,
         status_text,
-        (22, 44),
+        (24, 56),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.88,
+        1.0,
         status_color,
-        2,
+        3,
+        cv2.LINE_AA,
+    )
+
+    calibration_text = "CAL SAVED" if using_saved_calibration else "CAL TEMP"
+    cv2.putText(
+        frame,
+        calibration_text,
+        (24, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        HUD_MUTED,
+        1,
         cv2.LINE_AA,
     )
 
     ear_text = "-" if smooth_ear is None else f"{smooth_ear:.3f}"
-    metrics_text = f"FPS {fps:.1f}    EAR {ear_text}"
-    text_size = cv2.getTextSize(metrics_text, cv2.FONT_HERSHEY_SIMPLEX, 0.72, 2)[0]
+    fps_text = f"FPS {fps:.1f}"
+    ear_text_block = f"EAR {ear_text}"
+    threshold_text = f"THR {ear_threshold:.3f}"
+    separator = "  |  "
+
+    scale = 0.68
+    thickness = 2
+    fps_size = cv2.getTextSize(fps_text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
+    ear_size = cv2.getTextSize(ear_text_block, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
+    thr_size = cv2.getTextSize(threshold_text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)[0]
+    sep_size = cv2.getTextSize(separator, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)[0]
+    total_width = fps_size[0] + sep_size[0] + ear_size[0] + sep_size[0] + thr_size[0]
+    x = width - total_width - 24
+    y = 52
+
     cv2.putText(
         frame,
-        metrics_text,
-        (width - text_size[0] - 20, 44),
+        fps_text,
+        (x, y),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.72,
+        scale,
         HUD_BLUE,
-        2,
+        thickness,
         cv2.LINE_AA,
     )
+    x += fps_size[0]
+    cv2.putText(frame, separator, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, HUD_MUTED, 1, cv2.LINE_AA)
+    x += sep_size[0]
+    cv2.putText(frame, ear_text_block, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, HUD_BLUE, thickness, cv2.LINE_AA)
+    x += ear_size[0]
+    cv2.putText(frame, separator, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, HUD_MUTED, 1, cv2.LINE_AA)
+    x += sep_size[0]
+    cv2.putText(frame, threshold_text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, HUD_ORANGE, thickness, cv2.LINE_AA)
 
-    # Optional concise blink feedback
-    if blink_detected:
-        badge_text = "BLINK DETECTED"
-        badge_size = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.62, 2)[0]
-        bx1 = width - badge_size[0] - 28
-        by1 = 70
-        bx2 = width - 14
-        by2 = 102
-        _blend_rect(frame, bx1, by1, bx2, by2, (30, 90, 30), alpha=0.55)
+    # Blink indicator with smooth fade-out.
+    if blink_strength > 0.0:
+        intensity = max(0.0, min(blink_strength, 1.0))
+        badge_text = "BLINK"
+        badge_size = cv2.getTextSize(badge_text, cv2.FONT_HERSHEY_SIMPLEX, 0.72, 2)[0]
+        bx1 = width - badge_size[0] - 40
+        by1 = 90
+        bx2 = width - 16
+        by2 = 126
+        _blend_rect(frame, bx1, by1, bx2, by2, (26, 70, 26), alpha=0.20 + 0.35 * intensity)
+        blink_text_color = (
+            int(120 + 100 * intensity),
+            int(180 + 60 * intensity),
+            int(120 + 100 * intensity),
+        )
         cv2.putText(
             frame,
             badge_text,
-            (bx1 + 8, by1 + 22),
+            (bx1 + 12, by1 + 26),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.62,
-            HUD_GREEN,
+            0.72,
+            blink_text_color,
             2,
             cv2.LINE_AA,
         )
 
     # Small bottom hint bar
     if help_enabled:
-        hint_text = "Q/ESC Quit   |   R Recalibrate"
-        text_w, text_h = cv2.getTextSize(hint_text, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)[0]
-        y1 = height - 34
+        hint_text = "Q or ESC: Quit    |    R: Recalibrate"
+        text_w, text_h = cv2.getTextSize(hint_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+        y1 = height - 40
         y2 = height - 8
-        _blend_rect(frame, 8, y1, width - 8, y2, (20, 20, 20), alpha=0.42)
+        _blend_rect(frame, 8, y1, width - 8, y2, (18, 18, 18), alpha=0.48)
         cv2.putText(
             frame,
             hint_text,
-            (max(14, (width - text_w) // 2), y1 + text_h + 4),
+            (max(16, (width - text_w) // 2), y1 + text_h + 6),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.48,
+            0.5,
             HUD_MUTED,
             1,
             cv2.LINE_AA,
         )
-
-    # Keep this subtle and compact in the HUD to avoid clutter.
-    calibration_text = "CAL SAVED" if using_saved_calibration else "CAL TEMP"
-    cv2.putText(
-        frame,
-        calibration_text,
-        (22, 26),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.45,
-        HUD_MUTED,
-        1,
-        cv2.LINE_AA,
-    )
-
-    threshold_text = f"THR {ear_threshold:.3f}"
-    threshold_size = cv2.getTextSize(threshold_text, cv2.FONT_HERSHEY_SIMPLEX, 0.46, 1)[0]
-    cv2.putText(
-        frame,
-        threshold_text,
-        (width - threshold_size[0] - 20, 26),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.46,
-        HUD_MUTED,
-        1,
-        cv2.LINE_AA,
-    )
 
 
 def draw_face_guides(
@@ -163,34 +177,41 @@ def draw_face_guides(
     min_y = max(0, min(ys) - 10)
     max_x = min(width - 1, max(xs) + 10)
     max_y = min(height - 1, max(ys) + 10)
-    cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), HUD_BLUE, 1, cv2.LINE_AA)
+    cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), (180, 122, 70), 1, cv2.LINE_AA)
 
     for index in left_eye_landmarks:
         lm = landmarks[index]
-        cv2.circle(frame, (int(lm.x * width), int(lm.y * height)), 2, HUD_GREEN, -1, cv2.LINE_AA)
+        cv2.circle(frame, (int(lm.x * width), int(lm.y * height)), 3, (135, 225, 165), -1, cv2.LINE_AA)
     for index in right_eye_landmarks:
         lm = landmarks[index]
-        cv2.circle(frame, (int(lm.x * width), int(lm.y * height)), 2, HUD_GREEN, -1, cv2.LINE_AA)
+        cv2.circle(frame, (int(lm.x * width), int(lm.y * height)), 3, (135, 225, 165), -1, cv2.LINE_AA)
 
 
-def draw_no_face_overlay(frame: Any) -> None:
+def draw_no_face_overlay(
+    frame: Any,
+    *,
+    fps: float,
+    ear_threshold: float,
+    help_enabled: bool,
+    using_saved_calibration: bool,
+) -> None:
     """Display guidance when no face landmarks are detected."""
     draw_status_overlay(
         frame,
         smooth_ear=None,
-        ear_threshold=0.0,
-        fps=0.0,
-        help_enabled=True,
-        using_saved_calibration=False,
-        blink_detected=False,
-        running=False,
+        ear_threshold=ear_threshold,
+        fps=fps,
+        help_enabled=help_enabled,
+        using_saved_calibration=using_saved_calibration,
+        blink_strength=0.0,
+        running=True,
     )
     cv2.putText(
         frame,
         "Face not detected",
-        (22, 92),
+        (24, 112),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.72,
+        0.74,
         HUD_RED,
         2,
         cv2.LINE_AA,
