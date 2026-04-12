@@ -39,6 +39,7 @@ def draw_status_overlay(
     fps: float,
     help_enabled: bool,
     using_saved_calibration: bool,
+    beauty_level: str,
     blink_strength: float = 0.0,
     running: bool = True,
 ) -> None:
@@ -46,7 +47,7 @@ def draw_status_overlay(
     height, width = frame.shape[:2]
 
     # Top HUD bar
-    bar_height = 72
+    bar_height = 80
     _blend_rect(frame, 8, 8, width - 8, 8 + bar_height, (18, 18, 18), alpha=0.52)
 
     status_text = "RUNNING" if running else "STOPPED"
@@ -54,7 +55,7 @@ def draw_status_overlay(
     cv2.putText(
         frame,
         status_text,
-        (24, 56),
+        (24, 60),
         cv2.FONT_HERSHEY_SIMPLEX,
         1.0,
         status_color,
@@ -74,6 +75,18 @@ def draw_status_overlay(
         cv2.LINE_AA,
     )
 
+    beauty_text = f"BEAUTY {beauty_level.upper()}"
+    cv2.putText(
+        frame,
+        beauty_text,
+        (24, 46),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        HUD_GREEN if beauty_level != "Off" else HUD_MUTED,
+        1,
+        cv2.LINE_AA,
+    )
+
     ear_text = "-" if smooth_ear is None else f"{smooth_ear:.3f}"
     fps_text = f"FPS {fps:.1f}"
     ear_text_block = f"EAR {ear_text}"
@@ -88,7 +101,7 @@ def draw_status_overlay(
     sep_size = cv2.getTextSize(separator, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)[0]
     total_width = fps_size[0] + sep_size[0] + ear_size[0] + sep_size[0] + thr_size[0]
     x = width - total_width - 24
-    y = 52
+    y = 58
 
     cv2.putText(
         frame,
@@ -194,6 +207,7 @@ def draw_no_face_overlay(
     ear_threshold: float,
     help_enabled: bool,
     using_saved_calibration: bool,
+    beauty_level: str,
 ) -> None:
     """Display guidance when no face landmarks are detected."""
     draw_status_overlay(
@@ -203,6 +217,7 @@ def draw_no_face_overlay(
         fps=fps,
         help_enabled=help_enabled,
         using_saved_calibration=using_saved_calibration,
+        beauty_level=beauty_level,
         blink_strength=0.0,
         running=True,
     )

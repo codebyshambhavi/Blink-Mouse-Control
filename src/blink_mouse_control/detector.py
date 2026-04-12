@@ -179,46 +179,63 @@ def _get_beauty_filter_profile(level: str) -> dict[str, float]:
             "red_boost": 0.0,
             "green_boost": 0.0,
             "blue_reduce": 0.0,
+            "eye_detail": 0.0,
             "eye_pad": 0.0,
         },
         "Low": {
-            "blend": 0.16,
-            "bilateral_sigma": 20.0,
-            "glow_sigma": 2.0,
-            "glow_mix": 0.10,
-            "alpha": 1.02,
-            "beta": 2.0,
-            "red_boost": 2.0,
-            "green_boost": 1.0,
+            "blend": 0.12,
+            "bilateral_sigma": 18.0,
+            "glow_sigma": 1.6,
+            "glow_mix": 0.06,
+            "alpha": 1.015,
+            "beta": 1.0,
+            "red_boost": 1.0,
+            "green_boost": 0.5,
             "blue_reduce": 0.0,
+            "eye_detail": 0.08,
             "eye_pad": 2.0,
         },
         "Medium": {
-            "blend": 0.24,
-            "bilateral_sigma": 24.0,
-            "glow_sigma": 3.0,
-            "glow_mix": 0.16,
-            "alpha": 1.03,
-            "beta": 3.0,
-            "red_boost": 3.0,
+            "blend": 0.22,
+            "bilateral_sigma": 22.0,
+            "glow_sigma": 2.6,
+            "glow_mix": 0.12,
+            "alpha": 1.025,
+            "beta": 2.0,
+            "red_boost": 2.0,
             "green_boost": 1.0,
             "blue_reduce": 1.0,
+            "eye_detail": 0.12,
             "eye_pad": 3.0,
         },
         "High": {
             "blend": 0.32,
-            "bilateral_sigma": 28.0,
-            "glow_sigma": 4.0,
-            "glow_mix": 0.22,
-            "alpha": 1.04,
-            "beta": 4.0,
-            "red_boost": 4.0,
-            "green_boost": 2.0,
+            "bilateral_sigma": 26.0,
+            "glow_sigma": 3.6,
+            "glow_mix": 0.18,
+            "alpha": 1.03,
+            "beta": 2.8,
+            "red_boost": 2.8,
+            "green_boost": 1.4,
             "blue_reduce": 1.0,
+            "eye_detail": 0.16,
             "eye_pad": 4.0,
         },
     }
     return profiles.get(level, profiles["Off"])
+
+
+def _approach(current: float, target: float, factor: float) -> float:
+    """Move a value toward a target by a bounded factor."""
+    return current + (target - current) * factor
+
+
+def _mix_profiles(current: dict[str, float], target: dict[str, float], factor: float) -> dict[str, float]:
+    """Gradually blend one profile into another."""
+    return {
+        key: _approach(current.get(key, value), value, factor)
+        for key, value in target.items()
+    }
 
 
 def _landmark_rect(
@@ -246,10 +263,9 @@ def _landmark_rect(
 def _apply_beauty_filter_to_face(
     frame: Any,
     landmarks: Any,
-    level: str,
+    profile: dict[str, float],
 ) -> None:
     """Apply subtle smoothing, glow, and warm tone to the detected face ROI only."""
-    profile = _get_beauty_filter_profile(level)
     if profile["blend"] <= 0.0:
         return
 
@@ -276,25 +292,38 @@ def _apply_beauty_filter_to_face(
     if roi_h < 32 or roi_w < 32:
         return
 
+    brightness = float(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY).mean())
+    lighting_delta = (128.0 - brightness) / 128.0
+    low_light = max(0.0, min(lighting_delta, 1.0))
+    bright_light = max(0.0, min(-lighting_delta, 1.0))
+
+    adaptive_blend = min(0.40, profile["blend"] + (0.05 * low_light) - (0.02 * bright_light))
+    adaptive_glow_mix = min(0.30, profile["glow_mix"] + (0.05 * low_light))
+    adaptive_glow_sigma = max(0.0, profile["glow_sigma"] + (0.6 * low_light))
+    adaptive_alpha = min(1.10, profile["alpha"] + (0.04 * low_light) - (0.02 * bright_light))
+    adaptive_beta = profile["beta"] + (4.0 * low_light) - (1.5 * bright_light)
+    adaptive_red_boost = profile["red_boost"] + (1.0 * low_light)
+    adaptive_green_boost = profile["green_boost"] + (0.4 * low_light)
+    adaptive_blue_reduce = profile["blue_reduce"] + (0.3 * low_light)
+
     smoothed = cv2.bilateralFilter(
         roi,
         d=5,
-        sigmaColor=profile["bilateral_sigma"],
-        sigmaSpace=profile["bilateral_sigma"],
+        sigmaColor=profile["bilateral_sigma"] + (2.0 * low_light),
+        sigmaSpace=profile["bilateral_sigma"] + (2.0 * low_light),
     )
-    glow_source = cv2.GaussianBlur(roi, (0, 0), sigmaX=profile["glow_sigma"], sigmaY=profile["glow_sigma"])
-    glow_mix = cv2.addWeighted(smoothed, 1.0 - profile["glow_mix"], glow_source, profile["glow_mix"], 0.0)
-    adjusted = cv2.convertScaleAbs(glow_mix, alpha=profile["alpha"], beta=profile["beta"])
+    glow_source = cv2.GaussianBlur(roi, (0, 0), sigmaX=adaptive_glow_sigma, sigmaY=adaptive_glow_sigma)
+    glow_mix = cv2.addWeighted(smoothed, 1.0 - adaptive_glow_mix, glow_source, adaptive_glow_mix, 0.0)
+    adjusted = cv2.convertScaleAbs(glow_mix, alpha=adaptive_alpha, beta=adaptive_beta)
 
     warm = adjusted.astype(np.int16)
-    warm[:, :, 2] = np.clip(warm[:, :, 2] + profile["red_boost"], 0, 255)
-    warm[:, :, 1] = np.clip(warm[:, :, 1] + profile["green_boost"], 0, 255)
-    warm[:, :, 0] = np.clip(warm[:, :, 0] - profile["blue_reduce"], 0, 255)
+    warm[:, :, 2] = np.clip(warm[:, :, 2] + adaptive_red_boost, 0, 255)
+    warm[:, :, 1] = np.clip(warm[:, :, 1] + adaptive_green_boost, 0, 255)
+    warm[:, :, 0] = np.clip(warm[:, :, 0] - adaptive_blue_reduce, 0, 255)
     warm = warm.astype(np.uint8)
 
-    blended = cv2.addWeighted(roi, 1.0 - profile["blend"], warm, profile["blend"], 0.0)
+    blended = cv2.addWeighted(roi, 1.0 - adaptive_blend, warm, adaptive_blend, 0.0)
 
-    face_pad = 10
     eye_pad = max(2, int(profile["eye_pad"]))
     left_eye_rect = _landmark_rect(landmarks, LEFT_EYE_LANDMARKS, width=width, height=height, pad=eye_pad)
     right_eye_rect = _landmark_rect(landmarks, RIGHT_EYE_LANDMARKS, width=width, height=height, pad=eye_pad)
@@ -306,7 +335,17 @@ def _apply_beauty_filter_to_face(
         ex2 = min(ex2, max_x)
         ey2 = min(ey2, max_y)
         if ex2 > ex1 and ey2 > ey1:
-            blended[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x] = roi[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x]
+            eye_roi = roi[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x]
+            eye_soft = cv2.GaussianBlur(eye_roi, (0, 0), sigmaX=0.9, sigmaY=0.9)
+            eye_detail = cv2.addWeighted(eye_roi, 1.08, eye_soft, -0.08, 1.2)
+            eye_detail = cv2.convertScaleAbs(eye_detail, alpha=1.02, beta=1)
+            blended[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x] = cv2.addWeighted(
+                eye_roi,
+                1.0 - profile["eye_detail"],
+                eye_detail,
+                profile["eye_detail"],
+                0.0,
+            )
 
     if right_eye_rect is not None:
         ex1, ey1, ex2, ey2 = right_eye_rect
@@ -315,7 +354,17 @@ def _apply_beauty_filter_to_face(
         ex2 = min(ex2, max_x)
         ey2 = min(ey2, max_y)
         if ex2 > ex1 and ey2 > ey1:
-            blended[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x] = roi[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x]
+            eye_roi = roi[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x]
+            eye_soft = cv2.GaussianBlur(eye_roi, (0, 0), sigmaX=0.9, sigmaY=0.9)
+            eye_detail = cv2.addWeighted(eye_roi, 1.08, eye_soft, -0.08, 1.2)
+            eye_detail = cv2.convertScaleAbs(eye_detail, alpha=1.02, beta=1)
+            blended[ey1 - min_y : ey2 - min_y, ex1 - min_x : ex2 - min_x] = cv2.addWeighted(
+                eye_roi,
+                1.0 - profile["eye_detail"],
+                eye_detail,
+                profile["eye_detail"],
+                0.0,
+            )
 
     frame[min_y:max_y, min_x:max_x] = blended
 
@@ -479,6 +528,8 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
             state = BlinkState()
             previous_frame_timestamp: float | None = None
             blink_indicator_until: float = 0.0
+            current_beauty_level = control.get_beauty_filter_level()
+            current_beauty_profile = _get_beauty_filter_profile(current_beauty_level)
 
             print("[INFO] Detection started. Press ESC to quit.")
 
@@ -530,8 +581,16 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         else disabled_actions
                     )
                     beauty_filter_level = control.get_beauty_filter_level()
+                    target_beauty_profile = _get_beauty_filter_profile(beauty_filter_level)
+                    transition_factor = 0.10 if beauty_filter_level != current_beauty_level else 0.20
+                    current_beauty_profile = _mix_profiles(
+                        current_beauty_profile,
+                        target_beauty_profile,
+                        transition_factor,
+                    )
+                    current_beauty_level = beauty_filter_level
 
-                    _apply_beauty_filter_to_face(display_frame, landmarks, beauty_filter_level)
+                    _apply_beauty_filter_to_face(display_frame, landmarks, current_beauty_profile)
 
                     blink_ended = _update_blink_state(
                         smooth_ear,
@@ -559,6 +618,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
                         blink_strength=max(0.0, min((blink_indicator_until - now) / 0.30, 1.0)),
+                        beauty_level=beauty_filter_level,
                         running=True,
                     )
                     draw_face_guides(
@@ -574,6 +634,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         ear_threshold=active_threshold,
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
+                        beauty_level=beauty_filter_level,
                     )
                     control.update_live_stats(
                         fps=fps,
