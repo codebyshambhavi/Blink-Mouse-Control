@@ -19,7 +19,7 @@ from .config import DetectionConfig, LEFT_EYE_LANDMARKS, RIGHT_EYE_LANDMARKS
 from .ear import calculate_ear
 from .model import ensure_model_available
 from .settings import RuntimeSettings, load_runtime_settings, save_runtime_settings
-from .overlay import draw_no_face_overlay, draw_status_overlay
+from .overlay import draw_face_guides, draw_no_face_overlay, draw_status_overlay
 
 
 @dataclass
@@ -177,18 +177,21 @@ def _update_blink_state(
     actions: MouseActions,
     config: DetectionConfig,
     control: DetectionControl,
-) -> None:
+) -> bool:
     """Track blink start/end transitions based on EAR threshold crossings."""
     if smooth_ear < ear_threshold:
         if not state.in_blink:
             state.in_blink = True
             state.blink_start = now
-        return
+        return False
 
     if state.in_blink:
         _complete_blink_if_needed(now, state, actions, config, control)
         state.in_blink = False
         state.blink_start = None
+        return True
+
+    return False
 
 
 def _dispatch_click_actions(
@@ -303,10 +306,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
             ear_history: deque[float] = deque(maxlen=config.ear_smooth_window)
             state = BlinkState()
             previous_frame_timestamp: float | None = None
-
-            # Pre-create drawing specs once to reduce per-frame allocations.
-            mesh_spec = mp_vision.drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=1, circle_radius=1)
-            contour_spec = mp_vision.drawing_utils.DrawingSpec(color=(0, 128, 255), thickness=1)
+            blink_indicator_until: float = 0.0
 
             print("[INFO] Detection started. Press ESC to quit.")
 
@@ -358,7 +358,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         else disabled_actions
                     )
 
-                    _update_blink_state(
+                    blink_ended = _update_blink_state(
                         smooth_ear,
                         active_threshold,
                         now,
@@ -367,6 +367,8 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         config,
                         control,
                     )
+                    if blink_ended:
+                        blink_indicator_until = now + 0.30
                     _dispatch_click_actions(now, state, active_actions, config)
                     control.update_live_stats(
                         fps=fps,
@@ -381,13 +383,14 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         fps=fps,
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
+                        blink_detected=now < blink_indicator_until,
+                        running=True,
                     )
-                    mp_vision.drawing_utils.draw_landmarks(
+                    draw_face_guides(
                         display_frame,
                         results.face_landmarks[0],
-                        mp_vision.FaceLandmarksConnections.FACE_LANDMARKS_TESSELATION,
-                        mesh_spec,
-                        contour_spec,
+                        left_eye_landmarks=LEFT_EYE_LANDMARKS,
+                        right_eye_landmarks=RIGHT_EYE_LANDMARKS,
                     )
                 else:
                     draw_no_face_overlay(display_frame)
