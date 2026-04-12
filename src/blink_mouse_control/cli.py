@@ -2,7 +2,7 @@
 
 import argparse
 
-from .config import DetectionConfig
+from .config import BEAUTY_FILTER_LEVELS, DetectionConfig
 from .detector import run_detection
 from .ui import launch_control_panel
 
@@ -57,6 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Launch the CustomTkinter desktop control panel.",
     )
     parser.add_argument(
+        "--beauty-filter-level",
+        choices=BEAUTY_FILTER_LEVELS,
+        default="Medium",
+        help="Beauty filter intensity (Off, Low, Medium, High).",
+    )
+    parser.add_argument(
         "--no-beauty-filter",
         action="store_true",
         help="Disable the subtle face-only beauty filter.",
@@ -75,7 +81,7 @@ def main() -> None:
         camera_height=args.camera_height,
         use_saved_calibration=not args.no_saved_calibration,
         show_help_overlay=not args.no_help_overlay,
-        beauty_filter_enabled=not args.no_beauty_filter,
+        beauty_filter_level="Off" if args.no_beauty_filter else args.beauty_filter_level,
     )
 
     print("Blink Mouse Control - starting...")

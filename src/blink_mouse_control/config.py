@@ -3,6 +3,9 @@
 from dataclasses import dataclass
 
 
+BEAUTY_FILTER_LEVELS: tuple[str, ...] = ("Off", "Low", "Medium", "High")
+
+
 @dataclass(frozen=True)
 class DetectionConfig:
     """Runtime settings for blink detection and actions."""
@@ -26,7 +29,7 @@ class DetectionConfig:
     use_saved_calibration: bool = True
     show_help_overlay: bool = True
     save_calibration_after_run: bool = True
-    beauty_filter_enabled: bool = True
+    beauty_filter_level: str = "Medium"
 
 
 LEFT_EYE_LANDMARKS: tuple[int, int, int, int, int, int] = (33, 160, 158, 133, 153, 144)

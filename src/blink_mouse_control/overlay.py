@@ -137,7 +137,7 @@ def draw_status_overlay(
 
     # Small bottom hint bar
     if help_enabled:
-        hint_text = "Q or ESC: Quit    |    R: Recalibrate    |    B: Beauty Filter"
+        hint_text = "Q or ESC: Quit    |    R: Recalibrate    |    B: Cycle Beauty"
         text_w, text_h = cv2.getTextSize(hint_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
         y1 = height - 40
         y2 = height - 8
