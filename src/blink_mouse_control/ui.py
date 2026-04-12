@@ -65,7 +65,8 @@ class BlinkControlPanel:
         self.root = ctk.CTk()
         self.root.title("Blink Mouse Control")
         self.root.geometry("860x560")
-        self.root.resizable(False, False)
+        self.root.minsize(860, 560)
+        self.root.resizable(True, True)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.status_var = tk.StringVar(value="Stopped")
@@ -111,7 +112,19 @@ class BlinkControlPanel:
 
         self._build_layout()
         self._apply_theme(self.theme_mode, persist=False)
+        self.root.after(0, self._center_window)
         self._schedule_status_poll()
+
+    def _center_window(self) -> None:
+        """Center the window on the current screen after it is realized."""
+        self.root.update_idletasks()
+        window_width = self.root.winfo_width()
+        window_height = self.root.winfo_height()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x_position = max(0, (screen_width - window_width) // 2)
+        y_position = max(0, (screen_height - window_height) // 2)
+        self.root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
 
     def _build_layout(self) -> None:
         """Build and place all UI widgets in the main window."""
@@ -207,7 +220,7 @@ class BlinkControlPanel:
         recalibrate_button.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 12), sticky=tk.EW)
         self.recalibrate_button = recalibrate_button
 
-        settings_frame = ctk.CTkFrame(left_panel, corner_radius=8)
+        settings_frame = ctk.CTkScrollableFrame(left_panel, corner_radius=8)
         settings_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=10, pady=(0, 10))
         settings_frame.columnconfigure(0, weight=1)
 
@@ -219,7 +232,7 @@ class BlinkControlPanel:
 
         self.theme_label = ctk.CTkLabel(
             settings_frame,
-            text="Dark Mode",
+            text="🔥 DARK MODE 🔥",
             font=ctk.CTkFont(size=12, weight="bold"),
         )
         self.theme_label.grid(row=1, column=0, sticky=tk.W, padx=12, pady=(0, 4))
