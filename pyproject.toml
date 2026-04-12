@@ -16,7 +16,8 @@ dependencies = [
   "mediapipe>=0.10.14",
   "numpy>=1.26.0",
   "pyautogui>=0.9.54",
-  "customtkinter>=5.2.2"
+  "customtkinter>=5.2.2",
+  "matplotlib>=3.8.0"
 ]
 
 [project.scripts]

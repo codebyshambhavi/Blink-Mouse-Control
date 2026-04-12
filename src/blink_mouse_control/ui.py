@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections import deque
 import threading
 import tkinter as tk
 
 import customtkinter as ctk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
 from .config import DetectionConfig
 from .detector import DetectionControl, run_detection
@@ -58,6 +61,11 @@ class BlinkControlPanel:
         self.blink_count_value_label: ctk.CTkLabel | None = None
         self.threshold_value_label: ctk.CTkLabel | None = None
         self.sensitivity_value_label: ctk.CTkLabel | None = None
+        self.ear_history: deque[float] = deque([self.sensitivity_var.get()] * 80, maxlen=80)
+        self.ear_figure: Figure | None = None
+        self.ear_axes = None
+        self.ear_line = None
+        self.ear_canvas: FigureCanvasTkAgg | None = None
 
         self._build_layout()
         self._schedule_status_poll()
@@ -227,10 +235,11 @@ class BlinkControlPanel:
         stats_frame = ctk.CTkFrame(content_frame, corner_radius=8)
         stats_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(5, 8), pady=8)
         stats_frame.columnconfigure(1, weight=1)
+        stats_frame.rowconfigure(6, weight=1)
 
         ctk.CTkLabel(
             stats_frame,
-            text="Live Statistics",
+            text="Live Monitoring",
             font=ctk.CTkFont(size=15, weight="bold"),
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=12, pady=(12, 6))
 
@@ -277,8 +286,75 @@ class BlinkControlPanel:
         )
         self.threshold_value_label.grid(row=4, column=1, sticky=tk.E, padx=12, pady=(0, 10))
 
+        ctk.CTkLabel(stats_frame, text="EAR trend", font=ctk.CTkFont(size=12)).grid(
+            row=5,
+            column=0,
+            columnspan=2,
+            sticky=tk.W,
+            padx=12,
+            pady=(2, 6),
+        )
+        self._init_ear_graph(stats_frame)
+
         # Initialize slider from the default preset for predictable startup behavior.
         self._apply_preset("Medium")
+
+    def _init_ear_graph(self, parent: ctk.CTkFrame) -> None:
+        """Create and place the embedded EAR graph canvas."""
+        figure = Figure(figsize=(4.0, 2.0), dpi=100)
+        figure.patch.set_facecolor("#1f2937")
+        axes = figure.add_subplot(111)
+        axes.set_facecolor("#111827")
+
+        line, = axes.plot([], [], color="#3b82f6", linewidth=2.0)
+        axes.set_xlim(0, max(len(self.ear_history) - 1, 1))
+        axes.set_ylim(0.10, 0.35)
+        axes.set_xticks([])
+        axes.tick_params(axis="y", colors="#9ca3af", labelsize=8, length=0)
+        axes.spines["top"].set_visible(False)
+        axes.spines["right"].set_visible(False)
+        axes.spines["bottom"].set_visible(False)
+        axes.spines["left"].set_color("#4b5563")
+        axes.margins(x=0)
+
+        canvas = FigureCanvasTkAgg(figure, master=parent)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.grid(row=6, column=0, columnspan=2, sticky=tk.NSEW, padx=12, pady=(0, 12))
+        canvas_widget.configure(highlightthickness=0, bg="#1f2937")
+
+        self.ear_figure = figure
+        self.ear_axes = axes
+        self.ear_line = line
+        self.ear_canvas = canvas
+        self._update_ear_graph(self.sensitivity_var.get())
+
+    def _update_ear_graph(self, ear_value: float | None) -> None:
+        """Append a new EAR sample and redraw the graph efficiently."""
+        if self.ear_axes is None or self.ear_line is None or self.ear_canvas is None:
+            return
+
+        if ear_value is None:
+            fallback = self.ear_history[-1] if self.ear_history else self.sensitivity_var.get()
+            self.ear_history.append(fallback)
+        else:
+            self.ear_history.append(float(ear_value))
+
+        values = list(self.ear_history)
+        self.ear_line.set_data(range(len(values)), values)
+        self.ear_axes.set_xlim(0, max(len(values) - 1, 1))
+
+        min_value = min(values)
+        max_value = max(values)
+        padding = 0.02
+        lower = max(0.05, min_value - padding)
+        upper = min(0.50, max_value + padding)
+        if upper - lower < 0.08:
+            midpoint = (upper + lower) / 2
+            lower = max(0.05, midpoint - 0.04)
+            upper = min(0.50, midpoint + 0.04)
+        self.ear_axes.set_ylim(lower, upper)
+
+        self.ear_canvas.draw_idle()
 
     def _toggle_start_stop(self) -> None:
         """Start or stop the background blink detection thread."""
@@ -409,6 +485,7 @@ class BlinkControlPanel:
             self.ear_var.set("-")
             self.blink_count_var.set("0")
             self.current_threshold_var.set(f"{self.sensitivity_var.get():.3f}")
+            self._update_ear_graph(None)
             self._sync_stats_labels()
             return
 
@@ -418,6 +495,7 @@ class BlinkControlPanel:
 
         ear = stats["ear"]
         self.ear_var.set("-" if ear is None else f"{float(ear):.3f}")
+        self._update_ear_graph(None if ear is None else float(ear))
 
         blink_count_value = stats.get("blink_count")
         self.blink_count_var.set(str(int(blink_count_value) if blink_count_value is not None else 0))
