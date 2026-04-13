@@ -17,8 +17,13 @@ class DetectionConfig:
     calibration_time_seconds: float = 4.0
     ear_smooth_window: int = 6
     double_blink_max_gap_seconds: float = 0.55
-    long_blink_min_duration_seconds: float = 0.45
+    long_blink_min_duration_seconds: float = 1.0
     click_hold_duration_seconds: float = 0.5
+    scroll_pitch_threshold: float = 0.022
+    scroll_cooldown_seconds: float = 0.14
+    scroll_step_pixels: int = 80
+    scroll_pitch_smoothing: float = 0.22
+    scroll_neutral_adapt_rate: float = 0.02
     fallback_ear_threshold: float = 0.22
     min_detection_confidence: float = 0.5
     max_num_faces: int = 1

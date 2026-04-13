@@ -19,6 +19,12 @@ class MouseActions:
         time.sleep(hold_seconds)
         pyautogui.mouseUp()
 
+    def scroll_up(self, amount: int) -> None:
+        pyautogui.scroll(max(1, int(amount)))
+
+    def scroll_down(self, amount: int) -> None:
+        pyautogui.scroll(-max(1, int(amount)))
+
 
 class NoOpMouseActions(MouseActions):
     """Mouse action adapter that safely ignores all click requests."""
@@ -30,4 +36,10 @@ class NoOpMouseActions(MouseActions):
         return
 
     def hold_left_click(self, hold_seconds: float) -> None:
+        return
+
+    def scroll_up(self, amount: int) -> None:
+        return
+
+    def scroll_down(self, amount: int) -> None:
         return

@@ -54,6 +54,7 @@ def draw_status_overlay(
     help_enabled: bool,
     using_saved_calibration: bool,
     beauty_level: str,
+    scroll_mode_enabled: bool,
     blink_strength: float = 0.0,
     running: bool = True,
 ) -> None:
@@ -112,6 +113,19 @@ def draw_status_overlay(
         cv2.FONT_HERSHEY_SIMPLEX,
         0.48,
         HUD_GREEN if beauty_level != "Off" else HUD_MUTED,
+        1,
+        cv2.LINE_AA,
+    )
+
+    scroll_text = "SCROLL MODE ON" if scroll_mode_enabled else "SCROLL MODE OFF"
+    scroll_color = HUD_GREEN if scroll_mode_enabled else HUD_MUTED
+    cv2.putText(
+        frame,
+        scroll_text,
+        (width - 230, HUD_PADDING_Y + beauty_height + 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        scroll_color,
         1,
         cv2.LINE_AA,
     )
@@ -179,7 +193,7 @@ def draw_status_overlay(
 
     # Small bottom hint bar
     if help_enabled:
-        hint_text = "Q or ESC: Quit    |    R: Recalibrate    |    B: Cycle Beauty"
+        hint_text = "Q or ESC: Quit    |    R: Recalibrate    |    B: Cycle Beauty    |    Long Blink: Toggle Scroll"
         text_w, text_h = cv2.getTextSize(hint_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
         y1 = height - 40
         y2 = height - 8
@@ -237,6 +251,7 @@ def draw_no_face_overlay(
     help_enabled: bool,
     using_saved_calibration: bool,
     beauty_level: str,
+    scroll_mode_enabled: bool,
 ) -> None:
     """Display guidance when no face landmarks are detected."""
     draw_status_overlay(
@@ -247,6 +262,7 @@ def draw_no_face_overlay(
         help_enabled=help_enabled,
         using_saved_calibration=using_saved_calibration,
         beauty_level=beauty_level,
+        scroll_mode_enabled=scroll_mode_enabled,
         blink_strength=0.0,
         running=False,
     )

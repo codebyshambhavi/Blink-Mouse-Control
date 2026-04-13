@@ -35,6 +35,16 @@ class BlinkState:
 
 
 @dataclass
+class ScrollState:
+    """Mutable state for head-driven scrolling mode."""
+
+    enabled: bool = False
+    smoothed_pitch: float | None = None
+    neutral_pitch: float | None = None
+    last_scroll_time: float = 0.0
+
+
+@dataclass
 class DetectionControl:
     """Thread-safe runtime control shared between UI and detector loop."""
 
@@ -395,18 +405,25 @@ def _complete_blink_if_needed(
     actions: MouseActions,
     config: DetectionConfig,
     control: DetectionControl,
+    scroll_state: ScrollState,
 ) -> None:
     """Finalize a blink and dispatch long-blink action when threshold is met."""
     if state.blink_start is None:
         return
 
     duration = now - state.blink_start
-    state.blink_times.append(now)
     control.increment_blink_count()
     if duration >= config.long_blink_min_duration_seconds:
         print(f"[EVENT] LONG blink ({duration:.2f}s)")
-        actions.hold_left_click(config.click_hold_duration_seconds)
+        scroll_state.enabled = not scroll_state.enabled
+        scroll_state.neutral_pitch = None
+        scroll_state.smoothed_pitch = None
+        scroll_state.last_scroll_time = now
+        mode_label = "ON" if scroll_state.enabled else "OFF"
+        print(f"[EVENT] Scroll mode {mode_label}")
         state.blink_times.clear()
+    else:
+        state.blink_times.append(now)
 
 
 def _update_blink_state(
@@ -417,6 +434,7 @@ def _update_blink_state(
     actions: MouseActions,
     config: DetectionConfig,
     control: DetectionControl,
+    scroll_state: ScrollState,
 ) -> bool:
     """Track blink start/end transitions based on EAR threshold crossings."""
     if smooth_ear < ear_threshold:
@@ -426,7 +444,7 @@ def _update_blink_state(
         return False
 
     if state.in_blink:
-        _complete_blink_if_needed(now, state, actions, config, control)
+        _complete_blink_if_needed(now, state, actions, config, control, scroll_state)
         state.in_blink = False
         state.blink_start = None
         return True
@@ -462,6 +480,57 @@ def _compute_fps(previous_timestamp: float | None, current_timestamp: float) -> 
         return 0.0, current_timestamp
 
     return 1.0 / elapsed, current_timestamp
+
+
+def _estimate_head_pitch(landmarks: Any) -> float:
+    """Estimate relative pitch from normalized landmark positions."""
+    left_eye_outer = landmarks[33]
+    right_eye_outer = landmarks[263]
+    nose_tip = landmarks[1]
+    eye_line_y = (left_eye_outer.y + right_eye_outer.y) / 2.0
+    return float(nose_tip.y - eye_line_y)
+
+
+def _update_scroll_from_head_pose(
+    landmarks: Any,
+    now: float,
+    actions: MouseActions,
+    config: DetectionConfig,
+    scroll_state: ScrollState,
+) -> None:
+    """Drive scrolling from head pitch with stability safeguards."""
+    pitch = _estimate_head_pitch(landmarks)
+    if scroll_state.smoothed_pitch is None:
+        scroll_state.smoothed_pitch = pitch
+    else:
+        factor = max(0.05, min(config.scroll_pitch_smoothing, 0.95))
+        scroll_state.smoothed_pitch = _approach(scroll_state.smoothed_pitch, pitch, factor)
+
+    if scroll_state.neutral_pitch is None:
+        scroll_state.neutral_pitch = scroll_state.smoothed_pitch
+        return
+
+    pitch_delta = scroll_state.smoothed_pitch - scroll_state.neutral_pitch
+    if abs(pitch_delta) < (config.scroll_pitch_threshold * 0.45):
+        scroll_state.neutral_pitch = _approach(
+            scroll_state.neutral_pitch,
+            scroll_state.smoothed_pitch,
+            max(0.0, min(config.scroll_neutral_adapt_rate, 0.2)),
+        )
+
+    if (now - scroll_state.last_scroll_time) < config.scroll_cooldown_seconds:
+        return
+
+    if pitch_delta <= -config.scroll_pitch_threshold:
+        intensity = min(1.0, abs(pitch_delta) / max(config.scroll_pitch_threshold, 1e-6))
+        step = int(max(18, config.scroll_step_pixels * (0.75 + 0.4 * intensity)))
+        actions.scroll_up(step)
+        scroll_state.last_scroll_time = now
+    elif pitch_delta >= config.scroll_pitch_threshold:
+        intensity = min(1.0, abs(pitch_delta) / max(config.scroll_pitch_threshold, 1e-6))
+        step = int(max(18, config.scroll_step_pixels * (0.75 + 0.4 * intensity)))
+        actions.scroll_down(step)
+        scroll_state.last_scroll_time = now
 
 
 def _load_or_calibrate_threshold(
@@ -546,6 +615,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
 
             ear_history: deque[float] = deque(maxlen=config.ear_smooth_window)
             state = BlinkState()
+            scroll_state = ScrollState()
             previous_frame_timestamp: float | None = None
             blink_indicator_until: float = 0.0
             current_beauty_level = control.get_beauty_filter_level()
@@ -591,6 +661,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                             stop_check=control.should_stop,
                         )
                         state = BlinkState()
+                        scroll_state = ScrollState(enabled=scroll_state.enabled)
                         ear_history.clear()
 
                     landmarks = results.face_landmarks[0]
@@ -615,6 +686,15 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
 
                     _apply_beauty_filter_to_face(display_frame, landmarks, current_beauty_profile)
 
+                    if scroll_state.enabled:
+                        _update_scroll_from_head_pose(
+                            landmarks,
+                            now,
+                            active_actions,
+                            config,
+                            scroll_state,
+                        )
+
                     blink_ended = _update_blink_state(
                         smooth_ear,
                         active_threshold,
@@ -623,6 +703,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         active_actions,
                         config,
                         control,
+                        scroll_state,
                     )
                     if blink_ended:
                         blink_indicator_until = now + 0.30
@@ -642,6 +723,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         using_saved_calibration=using_saved_calibration,
                         blink_strength=max(0.0, min((blink_indicator_until - now) / 0.30, 1.0)),
                         beauty_level=beauty_filter_level,
+                        scroll_mode_enabled=scroll_state.enabled,
                         running=True,
                     )
                     draw_face_guides(
@@ -658,6 +740,7 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                         help_enabled=config.show_help_overlay,
                         using_saved_calibration=using_saved_calibration,
                         beauty_level=beauty_filter_level,
+                        scroll_mode_enabled=scroll_state.enabled,
                     )
                     control.update_live_stats(
                         fps=fps,
