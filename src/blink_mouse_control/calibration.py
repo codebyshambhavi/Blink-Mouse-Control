@@ -9,6 +9,7 @@ import mediapipe as mp
 
 from .config import DetectionConfig
 from .ear import calculate_ear, compute_threshold_from_samples
+from .preprocessing import normalize_lighting
 
 
 def _extract_average_ear(
@@ -70,6 +71,7 @@ def calibrate_ear_threshold(
             continue
 
         frame_small = cv2.resize(frame, config.calibration_preview_size)
+        frame_small = normalize_lighting(frame_small)
         rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         timestamp_ms = time.monotonic_ns() // 1_000_000

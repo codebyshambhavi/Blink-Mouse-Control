@@ -20,6 +20,7 @@ from .calibration import calibrate_ear_threshold
 from .config import BEAUTY_FILTER_LEVELS, DetectionConfig, LEFT_EYE_LANDMARKS, RIGHT_EYE_LANDMARKS
 from .ear import calculate_ear
 from .model import ensure_model_available
+from .preprocessing import normalize_lighting
 from .settings import RuntimeSettings, load_runtime_settings, save_runtime_settings
 from .overlay import draw_face_guides, draw_no_face_overlay, draw_status_overlay
 
@@ -568,8 +569,9 @@ def run_detection(config: DetectionConfig | None = None, control: DetectionContr
                     break
 
                 frame_small = cv2.resize(frame, config.process_size)
-                display_frame = cv2.resize(frame_small, config.frame_size)
-                rgb = cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB)
+                normalized_frame = normalize_lighting(frame_small)
+                display_frame = cv2.resize(normalized_frame, config.frame_size)
+                rgb = cv2.cvtColor(normalized_frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
                 timestamp_ms = time.monotonic_ns() // 1_000_000
                 results = face_mesh.detect_for_video(mp_image, timestamp_ms)
