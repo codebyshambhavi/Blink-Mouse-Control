@@ -1,15 +1,10 @@
 @echo off
 cd /d "%~dp0"
 
-set "PYTHON_EXE="
-if exist ".venv\Scripts\python.exe" set "PYTHON_EXE=.venv\Scripts\python.exe"
-if not defined PYTHON_EXE if exist "venv\Scripts\python.exe" set "PYTHON_EXE=venv\Scripts\python.exe"
-
-if not defined PYTHON_EXE (
-	echo [ERROR] No virtual environment python found in .venv or venv.
-	echo Create one first, for example: python -m venv .venv
-	exit /b 1
+if /I "%TERM_PROGRAM%"=="vscode" (
+	start "" /B powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1"
+	exit /b 0
 )
 
-"%PYTHON_EXE%" src\main.py
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1"
 exit /b %errorlevel%
